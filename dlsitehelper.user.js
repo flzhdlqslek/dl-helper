@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.54.0
+// @version      0.55.0
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -33,6 +33,9 @@
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
  *
+ * 0.55.0
+ *   - 카드: 쿠폰 딱지 한 번만·빈 칩 줄 없앰·격자 버튼 아래 고정·♡ 고정 폭·품번 말줄임, 카트 버튼 아이콘. 번역 허가 목록에 정렬·형식 칩. 층 이름(girlspro·girlsdrama·blpro·bldrama) 인식, 카드 캐시·장바구니 적용·필터 숫자 등 버그.
+ *   - 바꾼 함수: list.deco·chips·row·cartFoot·read·saleTag·filterCount, cart.pickApply, allList.start, voice.load, trBar, dlwPop, CSS(.dlch·.dlrow·.dlact·#dltr).
  * 0.54.0
  *   - 마이페이지 구입 이력·라이브러리(/mypage/userbuy·library): 카드마다 ♡, 꾹 누르면 내 태그·메모 시트, 위 칩 줄(전체·♡·메모·#태그), ⋯ 내보내기/가져오기. 이 기기 저장, 요청 없음. 로그인 화면이라 실제 구조는 못 봄(품번 링크로 카드를 찾음).
  *   - 바꾼 함수: lib(새)·libLongPress(새), route.isLib, tidy, CSS(#dllib·.dllh·#dllsh).
@@ -340,13 +343,13 @@
   const FEATURE_IMG = /vivion-bcs\.com\/images\//i; // 특집 배너 이미지 서버(신작 슬라이드도 같은 서버라 FEATURE_HREF와 함께 본다)
   const FEATURE_HREF = /\/fsr\/|\/works\/genre\//; // 특집 배너는 검색 페이지로 간다
   const NOT_BANNER_IMG = /logo|icon|btn_|common\//i;
-  const ALLOWED_FLOORS = ['girls', 'bl', 'girls-pro', 'bl-pro', 'girls-drama', 'bl-drama'];
+  const ALLOWED_FLOORS = ['girls', 'bl', 'girlspro', 'blpro', 'girlsdrama', 'bldrama'];
   const FLOOR_SUB = /^(|asmr|voice|tool|girlsgame)$/;
   // '기간' 같은 너무 흔한 단어를 제거해 불필요한 텍스트 노드 매칭 방지
   const COUPON_HINT = /쿠폰|초이득|期間限定|クーポン/;
   const POP_MAX_TEXT = 300; // 쿠폰 팝업으로 숨길 컨테이너의 최대 글자 수
   const COUPON_POP = /DLsite\s*쿠폰|기간\s*임박|초이득|期間限定|クーポン.{0,10}(確認|チェック)/;
-  const STRIP_FLOORS = ['girls', 'bl', 'maniax', 'home', 'girls-pro', 'bl-pro', 'girls-drama', 'bl-drama', 'pro', 'books', 'garumani'];
+  const STRIP_FLOORS = ['girls', 'bl', 'maniax', 'home', 'girlspro', 'blpro', 'girlsdrama', 'bldrama', 'pro', 'books', 'garumani'];
   const SALE_RE = /\d+\s*%\s*(OFF|오프)/i;
   const AI_RE = /AI生成|AI一部利用|AI\s*생성|AI\s*일부/i;
   const NAME_SEARCH = /\/keyword_(?:creater|maker_name)\//; // 성우·작가·서클 이름 검색(할인중 조건을 자동으로 안 붙임)
@@ -574,7 +577,7 @@
     const off = userOff.get(p); // 이 검색에서 사용자가 직접 끈 기본값은 다시 붙이지 않는다
     if (opt('saleOnly') && !off.sale && !/\/campaign\/campaign/.test(p) && !/discount_rates/.test(p) && !/\/is_free/.test(p) && !COUPON_RE.test(p) && !NAME_SEARCH.test(p)) np += '/campaign/campaign';
     // 작품 언어를 안 정한 검색은 한국어로(언어 불필요 NM은 0.44.0부터 안 붙임). 이름 검색·쿠폰 대상 검색은 일본어 작품이 많아 그대로 둔다
-    if (opt('koDefault') && !off.lang && /^\/(?:girls|bl)(-touch)?\/fsr\//.test(p) && !/options(?:%5B|\[)/i.test(p) && !COUPON_RE.test(p) && !NAME_SEARCH.test(p)) np += '/options%5B0%5D/KO_KR';
+    if (opt('koDefault') && !off.lang && /^\/(?:girls|bl)(?:pro|drama)?(?:-touch)?\/fsr\//.test(p) && !/options(?:%5B|\[)/i.test(p) && !COUPON_RE.test(p) && !NAME_SEARCH.test(p)) np += '/options%5B0%5D/KO_KR';
     // 기본 정렬(신작순)·대상(TL+보이스). 사이트 검색창에서 왔으면 사이트가 넣은 trend·TL+BL을 우리 기본으로 바꾼다
     const hdr = HEADER_SEARCH.test(p), ord = pathGet(np, 'order');
     if (/\/fsr\/=/.test(p) && !COUPON_RE.test(p) && (ord === undefined || (hdr && ord === 'trend'))) np = pathSet(np, ['order', 'page'], [['order%5B0%5D', DEF_ORDER]]);
@@ -779,6 +782,7 @@
     dn: 'M480-362q-8 0-15-2.5t-13-8.5L268-557q-11-11-11-28t11-28q11-11 28-11t28 11l156 156 156-156q11-11 28-11t28 11q11 11 11 28t-11 28L508-373q-6 6-13 8.5t-15 2.5Z',
     fl: 'M440-240q-17 0-28.5-11.5T400-280q0-17 11.5-28.5T440-320h80q17 0 28.5 11.5T560-280q0 17-11.5 28.5T520-240h-80ZM280-440q-17 0-28.5-11.5T240-480q0-17 11.5-28.5T280-520h400q17 0 28.5 11.5T720-480q0 17-11.5 28.5T680-440H280ZM160-640q-17 0-28.5-11.5T120-680q0-17 11.5-28.5T160-720h640q17 0 28.5 11.5T840-680q0 17-11.5 28.5T800-640H160Z', // 필터(줄 3개)
     ck: 'm382-354 339-339q12-12 28-12t28 12q12 12 12 28.5T777-636L410-268q-12 12-28 12t-28-12L182-440q-12-12-11.5-28.5T183-497q12-12 28.5-12t28.5 12l142 143Z',
+    ct: 'M280-80q-33 0-56.5-23.5T200-160q0-33 23.5-56.5T280-240q33 0 56.5 23.5T360-160q0 33-23.5 56.5T280-80Zm400 0q-33 0-56.5-23.5T600-160q0-33 23.5-56.5T680-240q33 0 56.5 23.5T760-160q0 33-23.5 56.5T680-80ZM246-720l96 200h280l110-200H246Zm-38-80h590q23 0 35 20.5t1 41.5L692-482q-11 20-29.5 31T622-440H324l-44 80h480v80H280q-45 0-68-39.5t-2-78.5l54-98-144-304H40v-80h130l38 80Zm134 280h280-280Z',
   };
   // 0.45.0 선 아이콘(이모지·글자 기호 대신, 직접 그린 단순한 선. 색은 글자색을 따라가고 켜지면 fill로 채움). viewBox 0 0 24 24
   const LINE = {
@@ -1168,6 +1172,8 @@
     // 나중에 받는 성우(vas)만 결합해 반환한다.
     read(e, i) {
       let base = list._cardCache.get(e);
+      const live = e.querySelector('a[href*="/product_id/"]'), liveId = live && pidOf(live.href);
+      if (base && base.id !== liveId) { list._cardCache.delete(e); base = null; } // 같은 li를 다른 작품으로 다시 그리면 캐시를 버린다
       if (!base) {
         const rawText = e.textContent || '';
         const a = e.querySelector('a[href*="/product_id/"]');
@@ -1182,10 +1188,10 @@
           end: list.parseEnd(rawText),
           names: list.names(e),
         };
-        // 가격이 아직 없으면 '할인 아님'으로 굳히지 않는다(최대 5번까지 다시 읽고, 그래도 없으면 확정)
-        const miss = (list._priceMiss.get(e) || 0) + 1;
-        if (base.sale || PRICE_RE.test(rawText) || miss >= 5) list._cardCache.set(e, base);
-        else list._priceMiss.set(e, miss);
+        // 가격이 아직 없으면 '할인 아님'으로 굳히지 않는다(처음 본 뒤 10초까지 다시 읽고, 그래도 없으면 확정)
+        const first = list._priceMiss.get(e) || Date.now();
+        if (base.sale || PRICE_RE.test(rawText) || Date.now() - first >= 10000) list._cardCache.set(e, base);
+        else list._priceMiss.set(e, first);
       }
       const id = base.id;
       const got = id ? voice.getCached(id) : null; // 받아 온 전체 성우가 있으면 그것, 없으면 카드의 이름
@@ -1367,6 +1373,8 @@
       pop.style.top = Math.round(r.bottom + 6) + 'px';
       pop.style.left = Math.max(8, Math.min(innerWidth - 170, Math.round(r.right - 160))) + 'px';
       document.documentElement.append(pop);
+      // 화면 아래에서 꾹 누르면 팝업이 화면 밖으로 나가던 것: 붙인 뒤 실제 높이로 아래 끝을 막는다
+      pop.style.top = Math.max(8, Math.min(innerHeight - pop.offsetHeight - 8, Math.round(r.bottom + 6))) + 'px';
       const off = (ev) => { if (pop.contains(ev.target)) return; pop.remove(); document.removeEventListener('pointerdown', off, true); };
       setTimeout(() => document.addEventListener('pointerdown', off, true), 0);
     },
@@ -1396,12 +1404,12 @@
       const mine = card.querySelector('.dlch, dd.n_work_option .dlcpn'), dueOn = card.querySelector('.dldue');
       const grid = !route.isCart(location.pathname) && !route.isRank(location.pathname); // 0.51.2 격자 카드는 쿠폰이 형식 줄(list.row)에 있어 가격 아래 칩 줄은 마감 칸이 있을 때만
       const needCover = grid && x.id;
-      if (box.dataset.sig === sig && (mine || grid ? !(grid && due && card.querySelector('.n_work_price_wrap')) || mine : !(bs.length || due || card.querySelector('.n_work_price_wrap .dlsl, .n_work_price_wrap .overseas_discount_label') || (!route.isCart(location.pathname) && !route.isRank(location.pathname) && card.querySelector('.n_work_price_wrap')))) && (dueOn || !(due && card.querySelector('.n_work_price_wrap'))) && (!needCover || box.querySelector('.dlw'))) return;
+      list.chips(card, grid ? [] : bs, due); // 0.55.0: 격자 카드 쿠폰은 이미 .dlrow에 있어 두 번 그리지 않는다. 캐시로 일찍 빠져도 칩은 다시 맞춘다
+      if (box.dataset.sig === sig && (mine || grid ? !(grid && due && card.querySelector('.n_work_price_wrap, .work_price_wrap')) || mine : !(bs.length || due || card.querySelector('.n_work_price_wrap .dlsl, .n_work_price_wrap .overseas_discount_label, .work_price_wrap .dlsl, .work_price_wrap .overseas_discount_label') || (!route.isCart(location.pathname) && !route.isRank(location.pathname) && card.querySelector('.n_work_price_wrap, .work_price_wrap')))) && (dueOn || !(due && card.querySelector('.n_work_price_wrap, .work_price_wrap'))) && (!needCover || box.querySelector('.dlw'))) return;
       box.dataset.sig = sig;
       const name = who ? list.nameChip(who) : null;
       const cover = !route.isCart(location.pathname) && !route.isRank(location.pathname);
       box.replaceChildren(...(name ? [el('div', { class: 'dlbd' }, name)] : []), ...(cover && x.id ? [list.dlw(x.id)] : []));
-      list.chips(card, bs, due);
       if (route.isCart(location.pathname)) list.cartFoot(card);
     },
     // 0.50.2 장바구니: 언어 라벨 → 카트로 되돌린다 → ☆ → 🗑을 한 줄로 이어 붙인다(라벨 바로 오른쪽에서 시작, 세로 가운데 같게). 위치는 카드마다 라벨 폭이 달라 재서 정한다
@@ -1419,14 +1427,14 @@
       if (Math.abs(d) >= 0.5) f.style.setProperty('margin-top', (mt + Math.round(d)) + 'px', 'important');
       // 라벨이 둘 이상(전연령·한국어 등)이라 링크가 카드 끝을 넘으면 글자가 접히므로, 그 카드만 라벨 아래 줄 오른쪽 끝으로 내린다
       const L = card.getBoundingClientRect();
-      if (f.getBoundingClientRect().right > L.right - 4 || f.getBoundingClientRect().height > 22) {
+      if (link.getBoundingClientRect().right > L.right - 4 || link.getBoundingClientRect().height > 22) {
         f.style.setProperty('margin-left', '0px', 'important'); f.style.setProperty('margin-top', '4px', 'important'); f.style.setProperty('align-self', 'flex-end', 'important');
       }
     },
-    // 0.50.0 가격 아래 칩(쿠폰 파랑·묶음 보라)과 가격 옆 마감 칸. 가격 칸(.n_work_price_wrap)이 없는 카드는 안 붙인다
+    // 0.50.0 가격 아래 칩(쿠폰 파랑·묶음 보라)과 가격 옆 마감 칸. 가격 칸(.n_work_price_wrap·.work_price_wrap)이 없는 카드는 안 붙인다
     chips(card, bs, due) {
       bs = bs || [];
-      const pw = card.querySelector('.n_work_price_wrap');
+      const pw = card.querySelector('.n_work_price_wrap, .work_price_wrap');
       const at = pw || card.querySelector('.n_work_name, .work_name, .dlrow'); // 가격 칸이 없으면 제목(없으면 제목 위 줄) 바로 아래
       for (const o of card.querySelectorAll('.dlch, .dldue, dd.n_work_option .dlcpn')) o.remove();
       // 0.51.2 장바구니: 묶음·쿠폰은 언어·연령 딱지 줄 맨 뒤로(사용자: R18 · 한국어 · 묶음 · 쿠폰 순, 한 줄)
@@ -1437,8 +1445,7 @@
       }
       if (pw) { const sl0 = pw.querySelector('.dlsl, .overseas_discount_label'); if (sl0 && pw.firstElementChild !== sl0) pw.prepend(sl0); } // 0.50.2 할인율 칸은 가격 왼쪽(같은 줄, 사용자 편집본)
       if (!at || route.isRank(location.pathname)) return; // 랭킹은 칩 줄 없음
-      const keep = !route.isCart(location.pathname) && !!pw; // 2열 카드는 비어 있어도 줄 높이를 남겨 옆 카드와 맞춘다
-      if (!bs.length && !(due && pw) && !keep) return;
+      if (!bs.length && !(due && pw)) return; // 0.55.0: 빈 칩 줄을 남기지 않는다(격자 버튼은 아래에 고정)
       const ch = el(at.tagName === 'DD' ? 'dd' : 'div', { class: 'dlch' }, ...(due && pw ? [el('span', { class: 'dldue ' + due.k }, due.t)] : []), ...bs.map(([c, t]) => el('span', { class: 'dlcpn' + (c === 'bk' ? ' bk' : '') }, t)));
       at.after(ch);
     },
@@ -1478,10 +1485,15 @@
     // 할인율을 가격 옆 작은 딱지로(0.42.0, 폰 카드). 원화 화면은 사이트가 가격 옆(.overseas_discount_label)에 넣고, 엔화 화면은 아래 빨간 띠(.n_sale_state)에만 있어
     // 그 글자를 가격 옆에 복사한다. 띠·サンプル/カート 버튼 줄은 CSS로 숨김(작품 화면에 들어가면 그대로 있음)
     saleTag(card) {
-      const pw = card.querySelector('.n_work_price_wrap');
-      if (!pw || pw.querySelector('.icon_campaign') || card.querySelector('.dlsl, .dlch .icon_campaign')) return;
+      const pw = card.querySelector('.n_work_price_wrap, .work_price_wrap');
+      if (!pw || pw.querySelector('.icon_campaign')) return;
       const s = card.querySelector('.n_sale_state .icon_campaign, .sale_discount_rate'); // 0.50.0 즐겨찾기 카드는 .sale_discount_rate에 할인율이 있다
-      if (s && s.textContent.trim()) pw.append(el('span', { class: 'dlsl' }, s.textContent.trim()));
+      const t = s && s.textContent.trim();
+      if (!t) return;
+      const old = pw.querySelector('.dlsl');
+      if (old) { if (old.textContent !== t) old.textContent = t; return; } // 0.55.0: 사이트가 할인율을 바꾸면 있던 칸 글자만 고친다
+      if (card.querySelector('.dlch .icon_campaign')) return;
+      pw.append(el('span', { class: 'dlsl' }, t));
     },
     // 사진 아래 한 줄(정리안3): 품번(누르면 복사) · 쿠폰·묶음 · ♥(로그인일 때). 사진 칸(dt 등) 바로 뒤에 넣는다
     // 0.49.0: 제목 바로 위 한 줄 = DLW · 품번(설정 '품번 표시'일 때). 제목 칸이 없는 카드는 예전처럼 사진 칸 바로 뒤
@@ -1529,7 +1541,7 @@
         pressable(heart, () => fav.toggle(x.id, card, heart), () => fav.folder(x.id, card, heart)); // 0.49.0 짧게 = 추가·빼기, 꾹 = 폴더로 옮기기
       }
       // 0.45.0: 맨 아래 줄 = ♥ · 장바구니(아이콘만). 사이트 버튼 줄(.item_btn_box)은 이 줄이 있을 때 숨긴다
-      const cartB = sc && !wish ? el('button', { class: 'dlcart', 'aria-label': '장바구니' }, '카트에 넣기') : null;
+      const cartB = sc && !wish ? el('button', { class: 'dlcart', 'aria-label': '장바구니' }, icon('ct'), el('span', {}, '카트에 넣기')) : null;
       if (cartB) cartB.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); sc.click(); });
       if (act) act.remove();
       if (heart || cartB) { act = el('div', { class: 'dlact' }, heart, cartB); card.append(act); card.classList.add('dlhas'); } else card.classList.remove('dlhas');
@@ -1620,7 +1632,7 @@
       let n = 0;
       for (const k of ['forms', 'lang']) if (a[k] && key(a[k]) !== key(b[k])) n++;
       if (`${a.sale ? 1 : 0}|${a.rate || 0}` !== `${b.sale ? 1 : 0}|${b.rate || 0}`) n++;
-      if (a.genres && a.genres.length) n++;
+      if (a.genres && key(a.genres) !== key(b.genres)) n++; // 0.55.0: 목록 화면의 기본 장르(예: 태그 목록)와 같으면 안 센다
       if ((a.age || '') !== (b.age || '')) n++; // 0.46.0 연령
       if ((a.price || '') !== (b.price || '')) n++; // 0.46.0 가격
       if ((a.order || '') !== (b.order || '')) n++; // 0.51.0 정렬
@@ -1688,7 +1700,7 @@
         };
         const go = (np) => { if (np && np !== location.pathname) { const u = new URL(location.href); u.pathname = np; location.assign(u.href); return true; } return false; };
         // 기본 언어: 한국어 기본(koDefault)이 붙는 검색이면 한국어, 아니면(서클·이름·쿠폰 검색) 조건 없음
-        const langDef = () => { const p = location.pathname; return opt('koDefault') && isSearch && /^\/(?:girls|bl)(-touch)?\/fsr\//.test(p) && !COUPON_RE.test(p) && !NAME_SEARCH.test(p) ? ['KO_KR'] : []; };
+        const langDef = () => { const p = location.pathname; return opt('koDefault') && isSearch && /^\/(?:girls|bl)(?:pro|drama)?(?:-touch)?\/fsr\//.test(p) && !COUPON_RE.test(p) && !NAME_SEARCH.test(p) ? ['KO_KR'] : []; };
         const isSearch = route.isSearch(location.pathname);
         // 주소의 order를 바꿔 다시 연다(사이트에서 정렬을 누를 때처럼 1번).
         // 0.46.0: 검색(/fsr/)은 order%5B0%5D/값, 그 밖 목록은 order/값(2026-11-05 실제 사이트에서 확인).
@@ -1808,7 +1820,7 @@
         // 0.43.0: 대상(TL/BL)은 주소의 층. 리셋·↺의 기본 대상은 '지금 있는 층'이라 층은 필터 개수에 안 센다
         list.filterSpec = () => {
           const lp0 = location.pathname, conv = isSearch ? null : fsrOf(lp0);
-          const ordOf = (q) => pathGet(q, 'order') || (conv ? nonSearchOrderGet(lp0) : '') || DEF_ORDER; // 0.51.0 정렬도 필터 창에서 고른다
+          const ordOf = (q) => (isFsrPath(q) ? pathGet(q, 'order') : nonSearchOrderGet(q)) || 'trend'; // 0.55.0: siteOrder()와 같은 기본값
           const stateOf = (q) => { const f = floorRead(q), qq = pathPairs(q); return { sex: f.sex, forms: f.forms, genres: qq ? qq.pairs.filter((x) => segKey(x[0]) === 'genre').map((x) => x[1]) : [], sale: urlSale(q), rate: urlRate(q), lang: langNow(q), age: ageNow(q), price: priceNow(q), order: ordOf(q) }; };
           if (!isSearch && !conv) {
             // 검색 주소로 못 바꾸는 목록(이벤트·묶음 할인): 할인만 이 쪽 안에서 거른다. 나머지 칸은 회색으로 자리만(0.48.0, search:false)
@@ -1879,8 +1891,8 @@
   // TL/BL = 주소의 층(/girls ↔ /bl), sex_category가 아니다(2026-11-02 사이트 조회 `fsr/ajax` 개수: /girls+gay 는 동인 ASMR 0·전체 1건, /bl 은 동인 ASMR 4090·전체 42084.
   // /bl 안에서 gay는 ゲイ向け 일부(6130)이고 여성향 BL은 female 35954라, sex_category로는 BL을 못 고른다). 층은 하나만 고른다(주소 하나가 곧 층)
   const SEXES = [['girls', 'TL'], ['bl', 'BL']];
-  const floorOf = (p) => { const m = String(p).match(/^\/(girls|bl)(?:-touch)?\//); return m ? m[1] : null; };
-  const withFloor = (p, fl) => (fl ? String(p).replace(/^\/(?:girls|bl)((?:-touch)?\/)/, `/${fl}$1`) : p);
+  const floorOf = (p) => { const m = String(p).match(/^\/(girls|bl)(?:pro|drama)?(?:-touch)?\//); return m ? m[1] : null; };
+  const withFloor = (p, fl) => (fl ? String(p).replace(/^\/(?:girls|bl)((?:pro|drama)?(?:-touch)?\/)/, `/${fl}$1`) : p);
   const FORMS = [['manga', '망가', ['books', 'doujin'], ['comic']], ['asmr', 'ASMR', ['doujin'], ['audio']], ['voice', '보이스', ['drama'], ['audio']]];
   // 0.46.0 연령·가격(2026-11-05 사이트 필터에서 확인).
   //   연령은 age_category[0]/adult|r15|general 하나(라디오). 비우면 안 붙인다(= 전체).
@@ -2212,7 +2224,7 @@
           store.set('lists1', all);
           allList.done([...ids]);
         })
-        .catch(() => { /* 못 세면 '전체' 숫자를 안 보인다 */ })
+        .catch(() => { allList.key = ''; /* 못 세면 '전체' 숫자를 안 보인다. 0.55.0: 실패한 목록은 다음에 다시 시도 */ })
         .finally(() => locale.enforce(false));
     },
     done(ids) { allList.ids = ids; allList.idsKey = allList.key; coupon.checkSoon(ids); list.scheduleApply(50); },
@@ -2281,12 +2293,14 @@
     pickApply() {
       // 0.50.0 안전장치: 처음엔 체크가 0개라 그대로 적용하면 카트 전부가 '나중에 산다'로 간다 → 하나도 안 골랐으면 아무것도 옮기지 않고 닫는다
       if (!cart.pk.size) { cart.pickOff(); return; }
-      const jobs = cart.rows().filter((r) => r.inCart !== cart.pk.has(r.id)).map((r) => r.link);
+      const jobs = cart.rows().filter((r) => r.inCart !== cart.pk.has(r.id)).map((r) => r.id);
       cart.pickOff();
       if (!jobs.length) return;
       let i = 0;
       const step = () => {
-        const a = jobs[i++];
+        const id = jobs[i++];
+        // 사이트가 카드를 다시 그려 링크 참조가 낡을 수 있으니 누르기 직전에 그 카드의 링크를 다시 찾는다
+        const row = cart.rows().find((r) => r.id === id), a = row && row.link;
         cart.busy = `${i}/${jobs.length}`; list.syncFab();
         if (a && a.isConnected) a.click(); // 사이트가 이 링크에 붙인 처리(카드 옮기기)를 그대로 쓴다
         if (i < jobs.length) setTimeout(step, PICK_GAP);
@@ -2898,6 +2912,8 @@
 
     load() {
       if (!opt('showVA') || !route.isList(location.pathname)) return;
+      // 0.55.0: 사이트가 카드를 다시 그려 떨어져 나간 노드는 감시에서 뺀다(IntersectionObserver가 계속 붙들고 있던 것)
+      for (const c of [...voice._obs]) if (!c.isConnected) { if (voice._io && voice._io.unobserve) voice._io.unobserve(c); voice._obs.delete(c); voice.vis.delete(c); }
       for (const card of list.items()) {
         if (card.dataset.dlva) continue;
         const a = card.querySelector('a[href*="/product_id/"]');
@@ -2908,12 +2924,14 @@
         const cv = voice.fromCard(card);
         if (cv && !cv.need) continue; // 카드에 성우가 다 있거나(음성) 성우가 없는 형식(만화 등)이면 받지 않는다
         voice.jobs.set(card, { card, id, url: a.href.split('?')[0] });
+        voice._obs.add(card);
         voice.io().observe(card); // 화면에 들어올 때만 큐에 들어간다
       }
     },
 
     jobs: new WeakMap(),
     vis: new Set(),
+    _obs: new Set(),
     tries: {},
     _io: null,
     io() {
@@ -3102,7 +3120,7 @@
 .dlx *{box-sizing:border-box}
 .dlx>*{pointer-events:auto}
 .dlrow{display:flex!important;align-items:center;gap:4px;margin-top:0!important;margin-bottom:4px!important;padding:0 2px!important;min-height:20px;list-style:none;font:700 11px/1 "Pretendard Variable",Pretendard,system-ui,sans-serif;color:#555}
-.dlrow .dlpn{white-space:nowrap;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.dlrow .dlpn{min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .dlrow .dlpn.ok{color:#2e7d32}
 .dlrow .dlw{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;margin-left:auto;width:22px;height:22px;padding:0;border:1.3px solid #222;border-radius:50%;color:#111;font:900 6.5px/1 system-ui,sans-serif;text-decoration:none;white-space:nowrap;position:relative}
 .dlrow .dlw::after{content:'';position:absolute;inset:-12px -12px -12px -16px}
@@ -3130,15 +3148,19 @@ html.dlwish .work_bottom .work_labels{display:none!important}
    아이콘 22→17px, 줄 높이 36→28px, 위아래 여백 8→5px. 카드가 2열이라 절반씩 쓰면 아이콘에 비해 배경만 컸다.
    누르는 크기는 52×28px로 WCAG 2.2 AA(최소 24×24)를 넘는다. 시안 guide/ui-0.46-카드아이콘.png B안. */
 .dlact{display:flex!important;gap:7px;margin:8px 4px 4px!important;padding:0!important}
+.dlact .dlcart svg{width:15px;height:15px;flex:none;margin-right:4px;fill:currentColor}
+/* 0.55.0 격자 카드: 버튼 줄을 카드 바닥에 붙여 카드마다 높이가 달라도 한 줄에 맞춘다(제목 말줄임은 하지 않음) */
+li.dlgrid.dlhas{display:flex!important;flex-direction:column}
+li.dlgrid.dlhas>.dlact{margin-top:auto!important}
 .dlact button{flex:none;height:34px;display:flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .dlact .dlfav{width:74px;background:#fff;box-shadow:inset 0 0 0 1px #666}
-.dlact .dlfav:only-child{flex:1;width:auto}
+.dlact .dlfav:only-child{flex:0 0 74px;width:74px}
 .dlact .dlfav svg{width:18px;height:18px;fill:none;stroke:#555;stroke-width:70}
 .dlact .dlfav.on{background:#fde4ec;box-shadow:none}
 .dlact .dlfav.on svg{fill:#d76088;stroke:#d76088}
 .dlact .dlfav.err svg{stroke:#e5322d}
 .dlact .dlfav[disabled]{opacity:.5}
-.dlact .dlcart{flex:1;background:#fad23a;color:#111;font:800 12px/1 system-ui,sans-serif}
+.dlact .dlcart{flex:1;min-width:0;overflow:hidden;background:#fad23a;color:#111;font:800 12px/1 system-ui,sans-serif}
 .dlhas .item_btn_box{display:none!important}
 svg.ln{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 #dlbar .x svg,#dlh .x svg{width:16px;height:16px}
@@ -3163,12 +3185,12 @@ li.n_work_list_item dt.n_work_thumb{margin-bottom:2px!important}
 html.dlh-blur .n_work_thumb img,html.dlh-blur .work_thumb img,html.dlh-blur img[src*="_img_main"],html.dlh-blur img[srcset*="_img_main"]{filter:blur(12px)}
 html.dlh-blur #work_visual img[src*="_img_main"],html.dlh-blur #work_left img[src*="_img_main"]{filter:blur(20px)}
 .dlch{min-height:calc(var(--dlz,1)*20px)}
-.n_work_price_wrap>.dlsl{margin:0 6px 0 0;min-width:calc(var(--dlz,1)*50px)}
-li.n_work_list_item .n_work_price_wrap{display:flex!important;align-items:center;flex-wrap:wrap}
+.n_work_price_wrap>.dlsl,.work_price_wrap>.dlsl{margin:0 6px 0 0;min-width:calc(var(--dlz,1)*50px)}
+li.n_work_list_item .n_work_price_wrap,li.n_work_list_item .work_price_wrap{display:flex!important;align-items:center;flex-wrap:wrap}
 li.dlgrid .strike,li.dlgrid .work_price_original{display:none!important}
 li.dlgrid.n_work_list_item .operations .btn{width:28px!important;height:28px!important}
-.n_work_price_wrap .overseas_discount_label{display:inline-flex;margin:0 6px 0 0}
-.n_work_price_wrap .overseas_discount_label .icon_campaign{display:inline-flex;align-items:center;justify-content:center;height:calc(var(--dlz,1)*20px);min-width:calc(var(--dlz,1)*50px);padding:0 6px;border-radius:5px;background:#dc2a30!important;color:#fff!important;font-family:system-ui,sans-serif!important;font-weight:800!important;font-size:calc(var(--dlz,1)*12px)!important;line-height:1!important;white-space:nowrap}
+.n_work_price_wrap .overseas_discount_label,.work_price_wrap .overseas_discount_label{display:inline-flex;margin:0 6px 0 0}
+.n_work_price_wrap .overseas_discount_label .icon_campaign,.work_price_wrap .overseas_discount_label .icon_campaign{display:inline-flex;align-items:center;justify-content:center;height:calc(var(--dlz,1)*20px);min-width:calc(var(--dlz,1)*50px);padding:0 6px;border-radius:5px;background:#dc2a30!important;color:#fff!important;font-family:system-ui,sans-serif!important;font-weight:800!important;font-size:calc(var(--dlz,1)*12px)!important;line-height:1!important;white-space:nowrap}
 .dlsl{display:inline-flex;align-items:center;justify-content:center;align-self:center;height:calc(var(--dlz,1)*20px);margin:4px 0 0 6px;padding:0 6px;border-radius:5px;background:#dc2a30;color:#fff;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*12px);line-height:1;white-space:nowrap} /* 0.49.0 할인율은 크게(가장 눈에 띄게) */
 .dlx .dlbd{position:absolute;left:0;right:0;bottom:0;pointer-events:none;display:flex;align-items:center;justify-content:space-between;gap:4px;height:24px;padding:0 6px;background:rgba(20,20,24,.72)}
 .dlx .dlva{min-width:0;color:#fff;font-size:10px;font-weight:700;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:auto;cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
@@ -3257,6 +3279,7 @@ li.dlpk-off>*:not(.dlpk){opacity:.45}
 #dlh .ev .et{display:inline}
 #dlh .ev .et i{display:block;margin-top:2px;font-style:normal;font-size:11.5px;color:var(--sub)}
 #dlh .mut{color:var(--faint);font-size:13px;padding:14px 0;text-align:center}
+#dlh .mut.lft{text-align:left;padding:6px 2px 0}
 #dlh button.tg{width:100%;margin:0;border-radius:0;background:none;font:inherit;text-align:left;cursor:pointer}
 #dlh .tg{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:46px;padding:0;border:0;border-bottom:1px solid #f0eeef;font-size:14px;color:var(--ink)}
 #dlh .grp>.tg:last-child{border-bottom:0}
@@ -3524,7 +3547,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
         el('div', { class: 'bd' }, gt('바로가기'),
           el('div', { class: 'tiles' }, ...curShortcuts().map(([label, url]) => { const [ic, nm] = splitIcon(label); return el('a', { class: 'tile', href: url }, el('span', { class: 'ti' }, ic || '🔗'), el('span', { class: 'tn' }, nm)); }),
             el('button', { class: 'tile', onclick: () => go('blocks') }, el('span', { class: 'ti' }, icon('ban')), el('span', { class: 'tn' }, '차단목록'))),
-          curShortcuts().length ? null : el('div', { class: 'mut' }, '바로가기 없음 · ⚙ → 바로가기 편집에서 추가'),
+          curShortcuts().length ? null : el('div', { class: 'mut lft' }, '바로가기 없음 · ⚙ → 바로가기 편집에서 추가'),
           el('button', { class: 'tg nv light', onclick: saveHere }, el('span', { class: 'tl' }, '＋ 지금 화면(필터 조건)을 바로가기로 저장')),
           gt('빠른 차단'), ...blockForm(),
           gt('빠른 스위치'),
@@ -4062,7 +4085,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
   }
   // 0.53.0 첫 화면(/girls·/bl 맨 위) 슬라이더·추천 카드에도 DLW(표지 오른쪽 위). 요청 없음: 카드 링크의 품번만 쓰고, 가격·쿠폰 줄은 안 붙인다
   function homeDlw() {
-    if (!/^\/(?:girls|bl)(?:-touch)?\/?$/.test(location.pathname)) return;
+    if (!/^\/(?:girls|bl)(?:pro|drama)?(?:-touch)?\/?$/.test(location.pathname)) return;
     for (const card of document.querySelectorAll('li.n_work_list_item')) {
       if (card.querySelector('.dlx')) continue;
       const a = card.querySelector('a[href*="/work/=/product_id/"]'), id = a && pidOf(a.getAttribute('href')), h = id && list.host(card);
@@ -4097,7 +4120,10 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
     paint();
   }
   // 0.53.0 번역 허가 목록 위 한 줄: 언어(한국어 기본·영어·간체·번체) + '신청 1↑ · 판매 0'. 주소의 translation_can_apply[0]만 바꿔 다시 연다(걸러내기는 위 reviewNewest 쪽 응답 가로채기)
+  // 0.55.0 같은 줄에 정렬·형식 칩을 더한다. 주소 query만 바꿔 다시 열고(쪽 빼기), 요청은 사이트가 받던 그 문서 1번뿐이다.
   const TR_LANGS = [['KO_KR', '한국어'], ['ENG', '영어'], ['CHI_HANS', '간체'], ['CHI_HANT', '번체']];
+  const TR_SORTS = [['trend', '인기'], ['translation_agree_d', '허가 최신'], ['release_d', '신작'], ['dl_d', '판매'], ['price', '가격↓'], ['price_d', '가격↑'], ['review_d', '리뷰']];
+  const TR_FORMS = [['SOU', '보이스'], ['MNG', '만화']];
   function trBar() {
     if (!route.isTrans(location.pathname) || document.getElementById('dltr')) return;
     const ul = document.querySelector('ul.n_work_list');
@@ -4105,7 +4131,21 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
     const u = new URL(location.href), K = 'translation_can_apply[0]', cur = u.searchParams.get(K);
     if (!cur) { u.searchParams.set(K, 'KO_KR'); location.replace(u.href); return; } // 기본 한국어(사이트는 언어를 안 정하면 전부 보여 줌)
     const on = !!opt('trOnly');
-    const chips = TR_LANGS.map(([c, t]) => el('button', { class: c === cur ? 'on' : '', 'aria-pressed': String(c === cur), onclick: () => { u.searchParams.set(K, c); u.searchParams.delete('page'); location.assign(u.href); } }, t));
+    const goQ = () => { u.searchParams.delete('page'); location.assign(u.href); };
+    const chips = TR_LANGS.map(([c, t]) => el('button', { class: c === cur ? 'on' : '', 'aria-pressed': String(c === cur), onclick: () => { u.searchParams.set(K, c); goQ(); } }, t));
+    const okey = u.searchParams.has('order[0]') ? 'order[0]' : 'order'; // 사이트 주소는 order=price(배열 아님)
+    const ord = u.searchParams.get(okey) || 'trend';
+    chips.push(...TR_SORTS.map(([v, t]) => el('button', { class: v === ord ? 'on' : '', 'aria-pressed': String(v === ord), 'aria-label': '정렬: ' + t, onclick: () => { if (v === ord) return; u.searchParams.set(okey, v); goQ(); } }, t)));
+    if (!/^\/books(?:\/|$)/.test(location.pathname)) { // books 층에는 work_type 조건을 안 붙인다
+      const pick = () => [...u.searchParams.entries()].filter(([k]) => /^work_type(?:\[[^\]]*\])?$/.test(k)).map(([, v]) => v);
+      const set = (vs) => {
+        for (const k of [...u.searchParams.keys()]) if (/^work_type(?:\[[^\]]*\])?$/.test(k)) u.searchParams.delete(k);
+        for (const v of TR_FORMS.map((f) => f[0]).filter((x) => vs.includes(x)).entries()) u.searchParams.set(`work_type[${v[0]}]`, v[1]); // 사이트 주소 모양 work_type[0]=SOU
+        goQ();
+      };
+      const has = pick();
+      chips.push(...TR_FORMS.map(([v, t]) => el('button', { class: has.includes(v) ? 'on' : '', 'aria-pressed': String(has.includes(v)), 'aria-label': '형식: ' + t, onclick: () => set(has.includes(v) ? has.filter((x) => x !== v) : [...has, v]) }, t)));
+    }
     const tog = el('button', { class: 'tg' + (on ? ' on' : ''), 'aria-pressed': String(on), onclick: () => { store.set('trOnly', !on); location.reload(); } }, '신청 1↑ · 판매 0');
     ul.parentElement.insertBefore(el('div', { id: 'dltr', role: 'toolbar', 'aria-label': '번역 허가 거르기' }, ...chips, el('span', { class: 'sp' }), tog), ul);
   }
