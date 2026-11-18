@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.55.0
+// @version      0.55.1
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -397,7 +397,7 @@
       put('fetch', function (a, b) {
         const u = typeof a === 'string' ? a : (a && a.url) || '';
         const p = of.call(this, fix(a), b);
-        return /\/translatableProducts\.json/.test(u) && opt('trOnly') ? p.then((r) => trFix(r, u)) : p;
+        return /\/translatableProducts\.json/.test(u) ? p.then((r) => trFix(r, u)) : p;
       });
     }
     const XO = w.XMLHttpRequest && w.XMLHttpRequest.prototype;
@@ -1173,7 +1173,7 @@
     read(e, i) {
       let base = list._cardCache.get(e);
       const live = e.querySelector('a[href*="/product_id/"]'), liveId = live && pidOf(live.href);
-      if (base && base.id !== liveId) { list._cardCache.delete(e); base = null; } // 같은 li를 다른 작품으로 다시 그리면 캐시를 버린다
+      if (base && base.id !== liveId) { list._cardCache.delete(e); list._priceMiss.delete(e); base = null; } // 같은 li를 다른 작품으로 다시 그리면 캐시를 버린다
       if (!base) {
         const rawText = e.textContent || '';
         const a = e.querySelector('a[href*="/product_id/"]');
@@ -1504,7 +1504,7 @@
       if (!x.id || !tb || tb === card || !card.contains(tb)) return;
       const rank = route.isRank(location.pathname); // 0.50.2 랭킹도 오른쪽 칸 맨 위 줄(형식·품번·DLW, 사용자 편집본), 랭킹은 품번을 늘 보인다
       const ttl = card.querySelector('.n_work_name, .work_name');
-      const pidOn = !!opt('showPid') || rank;
+      const pidOn = false; // 0.55.1 사용자 결정: 카드 품번 줄 뺌(DLW 꾹 복사는 그대로)
       let r = card.querySelector('.dlrow');
       const at = ttl ? r === ttl.previousElementSibling : r === tb.nextElementSibling; // 자리가 맞나(사이트가 다시 그리면 어긋난다)
       const on = fav.has(x.id);
@@ -1541,7 +1541,7 @@
         pressable(heart, () => fav.toggle(x.id, card, heart), () => fav.folder(x.id, card, heart)); // 0.49.0 짧게 = 추가·빼기, 꾹 = 폴더로 옮기기
       }
       // 0.45.0: 맨 아래 줄 = ♥ · 장바구니(아이콘만). 사이트 버튼 줄(.item_btn_box)은 이 줄이 있을 때 숨긴다
-      const cartB = sc && !wish ? el('button', { class: 'dlcart', 'aria-label': '장바구니' }, icon('ct'), el('span', {}, '카트에 넣기')) : null;
+      const cartB = sc && !wish ? el('button', { class: 'dlcart', 'aria-label': '장바구니' }, icon('ct')) : null;
       if (cartB) cartB.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); sc.click(); });
       if (act) act.remove();
       if (heart || cartB) { act = el('div', { class: 'dlact' }, heart, cartB); card.append(act); card.classList.add('dlhas'); } else card.classList.remove('dlhas');
@@ -3551,7 +3551,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
           el('button', { class: 'tg nv light', onclick: saveHere }, el('span', { class: 'tl' }, '＋ 지금 화면(필터 조건)을 바로가기로 저장')),
           gt('빠른 차단'), ...blockForm(),
           gt('빠른 스위치'),
-          grp(chk('blurThumb', '썸네일 흐리게', applyThumbBlur), chk('showPid', '품번 표시', () => list.apply()), chk('hideAI', 'AI 생성 작품 숨기기', () => list.apply()), chk('reviewFirst', '작품 화면: 리뷰 먼저(신착순)', reload)),
+          grp(chk('blurThumb', '썸네일 흐리게', applyThumbBlur), chk('hideAI', 'AI 생성 작품 숨기기', () => list.apply()), chk('reviewFirst', '작품 화면: 리뷰 먼저(신착순)', reload)),
           gt('이벤트'), evBox)],
       settings: () => [head('설정', 'menu'),
         el('div', { class: 'bd gray' },
@@ -3559,7 +3559,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
           gt('이벤트 · 배너'),
           grp(chk('autoJa', '이벤트 페이지 일본어 자동', applyLang), chk('hideBanners', '할인 외 배너 숨기기', clean.resetBanners), chk('saleStrip', '일본 할인 배너 표시', reload), chk('hideCouponPop', '쿠폰 팝업 숨기기', reload)),
           gt('작품 표시'),
-          grp(chk('showVA', '목록에 성우(CV) 표시', reload), chk('hideAI', 'AI 생성 작품 숨기기', () => list.apply()), chk('blurThumb', '썸네일 흐리게', applyThumbBlur), chk('showPid', '품번 표시', () => list.apply()), chk('onlyTlBl', 'TL/BL 층만 보이기', reload), chk('reviewFirst', '작품 화면: 리뷰 먼저(신착순)', reload),
+          grp(chk('showVA', '목록에 성우(CV) 표시', reload), chk('hideAI', 'AI 생성 작품 숨기기', () => list.apply()), chk('blurThumb', '썸네일 흐리게', applyThumbBlur), chk('onlyTlBl', 'TL/BL 층만 보이기', reload), chk('reviewFirst', '작품 화면: 리뷰 먼저(신착순)', reload),
             el('div', { class: 'tg' }, el('span', { class: 'tl' }, '할인 딱지 크기'), el('span', { class: 'seg' }, ...[['작게', 's'], ['보통', 'm'], ['크게', 'l']].map(([t, v]) =>
               el('button', { class: opt('chipSize') === v ? 'o' : '', 'aria-pressed': String(opt('chipSize') === v), onclick: () => { store.set('chipSize', v); applyChipSize(); render(); } }, t))))),
           gt('검색'),
@@ -4130,7 +4130,6 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
     if (!ul || !ul.parentElement) return;
     const u = new URL(location.href), K = 'translation_can_apply[0]', cur = u.searchParams.get(K);
     if (!cur) { u.searchParams.set(K, 'KO_KR'); location.replace(u.href); return; } // 기본 한국어(사이트는 언어를 안 정하면 전부 보여 줌)
-    const on = !!opt('trOnly');
     const goQ = () => { u.searchParams.delete('page'); location.assign(u.href); };
     const chips = TR_LANGS.map(([c, t]) => el('button', { class: c === cur ? 'on' : '', 'aria-pressed': String(c === cur), onclick: () => { u.searchParams.set(K, c); goQ(); } }, t));
     const okey = u.searchParams.has('order[0]') ? 'order[0]' : 'order'; // 사이트 주소는 order=price(배열 아님)
@@ -4146,8 +4145,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
       const has = pick();
       chips.push(...TR_FORMS.map(([v, t]) => el('button', { class: has.includes(v) ? 'on' : '', 'aria-pressed': String(has.includes(v)), 'aria-label': '형식: ' + t, onclick: () => set(has.includes(v) ? has.filter((x) => x !== v) : [...has, v]) }, t)));
     }
-    const tog = el('button', { class: 'tg' + (on ? ' on' : ''), 'aria-pressed': String(on), onclick: () => { store.set('trOnly', !on); location.reload(); } }, '신청 1↑ · 판매 0');
-    ul.parentElement.insertBefore(el('div', { id: 'dltr', role: 'toolbar', 'aria-label': '번역 허가 거르기' }, ...chips, el('span', { class: 'sp' }), tog), ul);
+    ul.parentElement.insertBefore(el('div', { id: 'dltr', role: 'toolbar', 'aria-label': '번역 허가 거르기' }, ...chips), ul); // 0.55.1 신청 있는 작품만 항상(토글 뺌)
   }
   // 0.53.0 이름(서클·성우·작가) 꾹 누르면 작은 메뉴: 검색 · 검색어 저장 · 차단. 종류는 눌린 이름에서 자동. 저장은 기존 키(shortcuts.custom 바로가기, block.list·block.kind)
   let panelApi = null; // buildPanel이 채움(바로가기 읽고 쓰기)
