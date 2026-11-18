@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLwatcher 검색 (품번/제목/성우)
 // @namespace    dlwatcher-search
-// @version      0.3.0
+// @version      0.4.2
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlwatcher-search.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlwatcher-search.user.js
 // @description  dlwatcher.com에 품번(RJ) / 제목·서클 / 성우 통합 검색을 추가합니다.
@@ -44,9 +44,13 @@
   };
 
   // 서비스 워커의 fetch 대신 GM_xmlhttpRequest 로 DLsite 를 호출한다(교차 출처 허용).
+  // opts.signal(AbortController)이 끊으면 GM 요청도 같이 끊는다.
   const fetch = (url, opts) =>
     new Promise((resolve, reject) => {
-      GM_xmlhttpRequest({
+      const sig = opts && opts.signal;
+      const aborted = () => Object.assign(new Error("timeout"), { name: "AbortError" });
+      if (sig && sig.aborted) return reject(aborted());
+      const req = GM_xmlhttpRequest({
         method: "GET",
         url,
         headers: (opts && opts.headers) || {},
@@ -59,8 +63,9 @@
             json: async () => JSON.parse(r.responseText),
           }),
         onerror: () => reject(new Error("DLsite 연결에 실패했어요.")),
-        ontimeout: () => reject(Object.assign(new Error("timeout"), { name: "AbortError" })), // background.js가 시간 초과 문구로 바꾼다
+        ontimeout: () => reject(aborted()), // background.js가 시간 초과 문구로 바꾼다
       });
+      if (sig) sig.addEventListener("abort", () => ((req && req.abort && req.abort()), reject(aborted())), { once: true });
     });
 
   GM_addStyle("/* \ubaa8\ub4e0 \uaddc\uce59\uc740 #dlws-root \uc544\ub798\ub85c \ud55c\uc815\ud574\uc11c dlwatcher \uc6d0\ub798 \ud654\uba74\uc744 \uac74\ub4dc\ub9ac\uc9c0 \uc54a\ub294\ub2e4. */\n#dlws-root, #dlws-root * { box-sizing: border-box; }\n\n#dlws-root {\n  --bg: #ffffff;\n  --surface: #f2f2f3;\n  --line: #ececee;\n  --ink: #111111;\n  --sub: #6b6b70;\n  --faint: #a3a3a8;\n  --red: #e5322d;\n  /* \uc810\uc218 4\ub2e8\uacc4 \uc0c9(\ubbf8\ud655\uc815) */\n  --lv-low: #0f9d58;\n  --lv-cheap: #7ad27a;\n  --lv-avg: #d9a400;\n  --lv-high: #e5322d;\n  /* \uadf8\ub798\ud504: \uc62c\ud574 / \uc9c0\ub09c\ud574 / \uc7ac\uc791\ub144 */\n  --g0: #185fa5;\n  --g1: #378add;\n  --g2: #9cc4ee;\n  --scrim: rgba(12, 14, 20, .5);\n\n  font-family: \"Pretendard Variable\", Pretendard, \"Hiragino Sans\", \"Noto Sans JP\", \"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", Meiryo, system-ui, sans-serif;\n  font-size: 14px;\n  line-height: 1.45;\n  color: var(--ink);\n  -webkit-text-size-adjust: 100%;\n}\n\n@media (prefers-color-scheme: dark) {\n  #dlws-root {\n    --bg: #141518;\n    --surface: #1f2024;\n    --line: #2a2b30;\n    --ink: #ededf0;\n    --sub: #a4a4ab;\n    --faint: #6f6f76;\n    --red: #ff5b52;\n    --g0: #8fbef0;\n    --g1: #5d9be0;\n    --g2: #35587e;\n    --scrim: rgba(0, 0, 0, .65);\n  }\n}\n\n#dlws-root button { font: inherit; color: inherit; }\n#dlws-root :focus-visible { outline: 2px solid var(--g0); outline-offset: 2px; }\n#dlws-root [hidden] { display: none !important; }\n\n/* ---------- \uc5f4\uae30 \ubc84\ud2bc ---------- */\n#dlws-root #dlws-fab {\n  position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 2147483000;\n  width: 54px; height: 54px; padding: 0; border: 0; border-radius: 50%;\n  display: grid; place-items: center; cursor: pointer;\n  background: var(--ink); color: var(--bg);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, .3);\n}\n#dlws-root #dlws-fab svg { width: 24px; height: 24px; }\n#dlws-root .dlws-dot { position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--red); border: 2px solid var(--bg); }\n\n/* ---------- \uc2dc\ud2b8(\ud3f0: \uc804\uccb4 \ud654\uba74 / PC: \uac00\uc6b4\ub370 \ud328\ub110) ---------- */\n#dlws-root #dlws-overlay { position: fixed; inset: 0; z-index: 2147483001; display: none; background: var(--scrim); }\n#dlws-root #dlws-overlay.dlws-open { display: block; }\n#dlws-root .dlws-panel { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; background: var(--bg); }\n@media (min-width: 700px) {\n  #dlws-root .dlws-panel { width: 460px; height: 92vh; margin: 4vh auto 0; border-radius: 18px; overflow: hidden; box-shadow: 0 16px 48px rgba(0, 0, 0, .4); }\n}\n\n/* \uc791\ud488 \ud31d\uc5c5(/product/ \ub85c \ub4e4\uc5b4\uc654\uc744 \ub54c): \uadf8 \uc791\ud488 \uce74\ub4dc\ub9cc \uac00\uc6b4\ub370\uc5d0 \uc791\uac8c, \uc544\ub798 \ud0ed\u00b7\uac80\uc0c9\uce78 \uc5c6\uc74c. \uc5ec\ubc31\uc744 \ub204\ub974\uba74 \ub098\uac10 */\n#dlws-root #dlws-overlay.dlws-quick.dlws-open { display: flex; align-items: center; justify-content: center; }\n#dlws-root .dlws-quick .dlws-panel { width: min(94vw, 460px); height: auto; max-height: 88vh; margin: 0; border-radius: 18px; overflow: hidden; box-shadow: 0 16px 48px rgba(0, 0, 0, .4); }\n#dlws-root .dlws-quick .dlws-nav { display: none; }\n#dlws-root .dlws-quick .dlws-body { padding-top: 8px; padding-bottom: 12px; min-height: 0; }\n\n#dlws-root .dlws-body { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 24px; }\n\n/* ---------- \uba38\ub9ac\ub9d0 ---------- */\n#dlws-root .dlws-ph { display: flex; align-items: center; justify-content: space-between; margin: 6px 0 12px; }\n#dlws-root .dlws-ph h1 { margin: 0; font-size: 22px; font-weight: 700; line-height: 1.3; color: var(--ink); }\n#dlws-root .dlws-ph h1 small { margin-left: 8px; font-size: 13px; font-weight: 400; color: var(--faint); }\n#dlws-root .dlws-x, #dlws-root .dlws-clear { width: 36px; height: 36px; padding: 0; border: 0; background: none; display: grid; place-items: center; color: var(--faint); cursor: pointer; border-radius: 50%; }\n#dlws-root .dlws-x svg { width: 22px; height: 22px; }\n#dlws-root .dlws-clear svg { width: 16px; height: 16px; }\n\n#dlws-root .dlws-field { display: flex; align-items: center; background: var(--surface); border-radius: 12px; padding: 0 4px 0 12px; margin-bottom: 8px; }\n#dlws-root .dlws-field input {\n  flex: 1; min-width: 0; height: 44px; padding: 0; border: 0; outline: 0; background: none; color: var(--ink);\n  font: inherit; font-size: 16px; /* 16px \ubbf8\ub9cc\uc774\uba74 iOS\uac00 \ud655\ub300\ud55c\ub2e4 */\n}\n#dlws-root .dlws-field input::placeholder { color: var(--faint); }\n#dlws-root .dlws-field input::-webkit-search-cancel-button { display: none; }\n\n#dlws-root .dlws-sec { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 6px; font-size: 12px; color: var(--faint); }\n#dlws-root .dlws-chips { display: flex; gap: 6px; flex-wrap: wrap; }\n#dlws-root .dlws-chip {\n  max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\n  padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--sub); font-size: 12px; cursor: pointer;\n}\n#dlws-root .dlws-linkbtn { border: 0; background: none; padding: 0; color: var(--faint); font-size: 12px; cursor: pointer; }\n\n#dlws-root .dlws-empty { padding: 28px 0; text-align: center; color: var(--faint); font-size: 13px; }\n#dlws-root .dlws-error { margin: 8px 0; padding: 10px 12px; border-radius: 10px; color: #b42318; background: rgba(217, 45, 32, .1); font-size: 13px; }\n#dlws-root .dlws-muted { color: var(--faint); font-size: 12px; }\n#dlws-root .dlws-foot { margin-top: 40px; text-align: center; color: var(--faint); font-size: 12px; }\n\n/* ---------- \uc815\ub82c ---------- */\n#dlws-root .dlws-sorts { display: flex; gap: 6px; margin: -4px 0 6px; }\n#dlws-root .dlws-sorts .dlws-chip { border: 0; color: var(--faint); }\n#dlws-root .dlws-sorts .dlws-chip.on { background: var(--ink); color: var(--bg); }\n#dlws-root .dlws-grp { display: flex; justify-content: space-between; padding: 14px 0 4px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line); }\n#dlws-root .dlws-grp span { font-weight: 400; color: var(--faint); }\n\n/* ---------- \uc791\ud488 \uc904 ---------- */\n#dlws-root .dlws-card { border-bottom: 1px solid var(--line); }\n#dlws-root .dlws-sum { display: flex; align-items: center; gap: 12px; padding: 10px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }\n#dlws-root .dlws-tw { position: relative; flex: none; }\n#dlws-root .dlws-thumb { display: block; width: 48px; height: 48px; object-fit: cover; border-radius: 8px; background: var(--surface); }\n#dlws-root .dlws-new { display: none; position: absolute; top: -3px; left: -3px; width: 11px; height: 11px; border-radius: 50%; background: var(--red); border: 2px solid var(--bg); }\n#dlws-root .dlws-card.has-news .dlws-new { display: block; }\n#dlws-root .dlws-newslist .dlws-card.has-news .dlws-new { display: none; } /* \uc0c8\uc18c\uc2dd \ud0ed\uc5d0\uc11c\ub294 \uc804\ubd80 \uc0c8\uc18c\uc2dd\uc774\ub77c \uc810\uc774 \ud544\uc694 \uc5c6\ub2e4 */\n#dlws-root .dlws-main { flex: 1; min-width: 0; }\n#dlws-root .dlws-name {\n  font-size: 14px; font-weight: 600; line-height: 1.3; word-break: break-word;\n  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;\n}\n#dlws-root .dlws-card.dlws-open .dlws-name { -webkit-line-clamp: unset; display: block; }\n#dlws-root .dlws-price { margin-top: 3px; font-size: 12px; }\n#dlws-root .dlws-kind { margin-top: 2px; font-size: 11px; color: var(--red); }\n\n#dlws-root .dlws-pl { display: inline-flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; color: var(--ink); }\n#dlws-root .dlws-pl s { color: var(--faint); }\n#dlws-root .dlws-pl .ar { color: var(--faint); }\n#dlws-root .dlws-pl.reg .now { color: var(--sub); }\n#dlws-root .dlws-pl.big { margin-left: auto; }\n#dlws-root .dlws-pl.big s, #dlws-root .dlws-pl.big .ar { font-size: 12px; }\n#dlws-root .dlws-pl.big .now { font-size: 22px; line-height: 1.2; }\n\n#dlws-root .dlws-lv { flex: none; width: 11px; height: 11px; border-radius: 50%; background: transparent; }\n#dlws-root .dlws-lv.lv-low { background: var(--lv-low); }\n#dlws-root .dlws-lv.lv-cheap { background: var(--lv-cheap); }\n#dlws-root .dlws-lv.lv-avg { background: var(--lv-avg); }\n#dlws-root .dlws-lv.lv-high { background: var(--lv-high); }\n\n/* ---------- \ud3bc\uce68 ---------- */\n#dlws-root .dlws-detail { padding: 0 0 16px; display: grid; gap: 10px; }\n#dlws-root .dlws-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }\n#dlws-root .dlws-tag.ko { background: var(--ink); color: var(--bg); }\n#dlws-root .dlws-tag.mk { background: var(--bg); border: 1px solid var(--line); } /* \uc11c\ud074 \ud0dc\uadf8\ub294 \ud14c\ub450\ub9ac */\n#dlws-root .dlws-tag { padding: 4px 10px; border: 0; border-radius: 999px; background: var(--surface); color: var(--sub); font-size: 12px; cursor: pointer; }\n#dlws-root .dlws-status { display: flex; align-items: center; gap: 8px; }\n#dlws-root .dlws-status .dlws-lv { width: 12px; height: 12px; }\n#dlws-root .dlws-status .lt { font-size: 14px; font-weight: 600; }\n\n#dlws-root .dlws-legend { display: flex; gap: 6px; }\n#dlws-root .dlws-legend button {\n  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;\n  background: var(--bg); color: var(--faint); font-size: 12px; cursor: pointer;\n}\n#dlws-root .dlws-legend button[aria-pressed=\"true\"] { color: var(--ink); border-color: var(--faint); }\n#dlws-root .dlws-legend i { display: inline-block; width: 14px; vertical-align: middle; border-top: 2px solid; }\n#dlws-root .dlws-legend .y0 i { border-color: var(--g0); }\n#dlws-root .dlws-legend .y1 i { border-color: var(--g1); border-top-style: dotted; }\n#dlws-root .dlws-legend .y2 i { border-color: var(--g2); }\n#dlws-root .dlws-chart svg { display: block; width: 100%; height: auto; overflow: visible; }\n#dlws-root .c-grid { stroke: var(--line); stroke-width: .7; }\n#dlws-root .c-mon { fill: var(--faint); font-size: 11px; font-family: inherit; }\n#dlws-root .c-low { stroke: var(--red); stroke-width: .8; opacity: .6; }\n#dlws-root .c-lowt { fill: var(--red); font-size: 11px; font-family: inherit; }\n#dlws-root .c-y0, #dlws-root .c-y1, #dlws-root .c-y2 { fill: none; stroke-linejoin: round; }\n#dlws-root .c-y0 { stroke: var(--g0); stroke-width: 2; }\n#dlws-root .c-y1 { stroke: var(--g1); stroke-width: 1.5; stroke-dasharray: 3 3; }\n#dlws-root .c-y2 { stroke: var(--g2); stroke-width: 1.5; }\n#dlws-root .c-now { fill: var(--g0); }\n\n#dlws-root .dlws-nums { display: flex; justify-content: space-between; font-size: 13px; font-variant-numeric: tabular-nums; }\n#dlws-root .dlws-nums em { font-style: normal; color: var(--sub); margin-right: 4px; }\n#dlws-root .dlws-note { font-size: 12px; color: var(--sub); }\n#dlws-root .dlws-note.warn { color: var(--lv-avg); }\n\n#dlws-root .dlws-acts { display: flex; gap: 8px; }\n#dlws-root .dlws-btn {\n  display: inline-flex; align-items: center; justify-content: center; height: 42px; padding: 0 12px; flex: 1;\n  border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--sub);\n  font-size: 13px; text-decoration: none; cursor: pointer;\n}\n#dlws-root .dlws-btn.primary { flex: 1.4; background: var(--ink); border-color: var(--ink); color: var(--bg); }\n#dlws-root .dlws-star { flex: 0 0 42px; padding: 0; color: var(--faint); }\n#dlws-root .dlws-star svg { width: 20px; height: 20px; fill: none; }\n#dlws-root .dlws-star[aria-pressed=\"true\"] { color: #d99a00; }\n#dlws-root .dlws-star[aria-pressed=\"true\"] svg { fill: currentColor; }\n#dlws-root .dlws-trow { display: flex; align-items: center; gap: 8px; font-size: 14px; }\n#dlws-root .dlws-tin { flex: 1; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; }\n\n#dlws-root .dlws-more { display: block; margin: 16px auto 0; height: 40px; padding: 0 22px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--sub); cursor: pointer; }\n\n/* ---------- \ud558\ub2e8 \ud0ed ---------- */\n#dlws-root .dlws-nav { flex: none; display: flex; border-top: 1px solid var(--line); background: var(--bg); padding-bottom: env(safe-area-inset-bottom, 0px); }\n#dlws-root .dlws-nav button { flex: 1; height: 54px; border: 0; background: none; color: var(--faint); font-size: 13px; cursor: pointer; }\n#dlws-root .dlws-nav button.on { color: var(--ink); font-weight: 700; }\n#dlws-root .dlws-badge {\n  display: inline-block; min-width: 16px; height: 16px; margin-left: 3px; padding: 0 5px; border-radius: 999px; vertical-align: 4px;\n  background: var(--red); color: #fff; font-style: normal; font-weight: 700; font-size: 10px; line-height: 16px; text-align: center;\n}\n\n/* ---------- \uc54c\ub9bc \uc904(\ub418\ub3cc\ub9ac\uae30 \ub4f1) ---------- */\n#dlws-root .dlws-toast {\n  position: absolute; left: 12px; right: 12px; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); z-index: 5;\n  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-radius: 10px;\n  background: var(--ink); color: var(--bg); font-size: 13px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3);\n}\n#dlws-root .dlws-toast button { border: 0; background: none; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; white-space: nowrap; }\n\n/* ---------- \ubc31\uc5c5 ---------- */\n#dlws-root .dlws-backup { margin-top: 28px; font-size: 12px; color: var(--faint); }\n#dlws-root .dlws-backup summary { cursor: pointer; }\n#dlws-root .dlws-backup[open] { display: grid; gap: 8px; }\n#dlws-root .dlws-memo { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; }\n\n@media (prefers-reduced-motion: no-preference) {\n  #dlws-root .dlws-detail:not([hidden]) { animation: dlws-open .16s ease-out; }\n  @keyframes dlws-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }\n}\n\n/* \ud654\uba74 \ubc16 \uc904\uc740 \ubc30\uce58 \uacc4\uc0b0\uc744 \uac74\ub108\ub6f4\ub2e4(\uc990\uaca8\ucc3e\uae30\uac00 \ub9ce\uc744 \ub54c \uc5f4\uae30\u00b7\uc815\ub82c\uc774 \ub290\ub824\uc9c0\uc9c0 \uc54a\uac8c) */\n#dlws-root .dlws-card:not(.dlws-open) { content-visibility: auto; contain-intrinsic-size: auto 69px; }\n\n/* ---------- \uac80\uc0c9 \ud544\ud130 \uce69 \u00b7 \uc811\ud78c \uc694\uc57d \uc904 ---------- */\n#dlws-root .dlws-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 6px; }\n#dlws-root .dlws-fc { padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--faint); font-size: 12px; cursor: pointer; }\n#dlws-root .dlws-fc.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }\n#dlws-root .dlws-filters .sep { width: 1px; height: 16px; background: var(--line); }\n/* \ub192\uc774 0\uc9dc\ub9ac \ub9c9\ub300\uae30\uc5d0 \uc694\uc57d \uc904\uc744 \ub9e4\ub2ec\uc544\uc11c, \ub098\ud0c0\ub098\ub3c4 \uc544\ub798 \ubaa9\ub85d\uc774 \ubc00\ub9ac\uc9c0 \uc54a\uac8c \ud55c\ub2e4 */\n#dlws-root .dlws-fstick { position: sticky; top: calc(-8px - env(safe-area-inset-top, 0px)); z-index: 3; height: 0; margin: 0 -16px; }\n#dlws-root .dlws-fsum {\n  display: flex; justify-content: space-between; width: 100%; padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; border: 0; border-bottom: 1px solid var(--line);\n  background: var(--bg); color: var(--sub); font-size: 12px; text-align: left; cursor: pointer;\n}\n");
@@ -173,6 +178,8 @@ async function runProduct({ site, id }) {
       { credentials: "include" }
     );
     lastStatus = res.status;
+    // 막혔으면(403·429·503) 다른 층을 더 두드리지 않는다 — 작품 하나 조회로 30분 정지가 걸리지 않게
+    if (res.status === 403 || res.status === 429 || res.status === 503) break;
     if (!res.ok) continue;
     let arr;
     try {
@@ -187,7 +194,7 @@ async function runProduct({ site, id }) {
     }
   }
   if (!w) {
-    if (lastStatus && lastStatus >= 500) throw new Error(`상품 정보 오류 (${lastStatus})`);
+    if (lastStatus >= 500 || lastStatus === 403 || lastStatus === 429) throw new Error(`상품 정보 오류 (${lastStatus})`); // "못 찾음"과 구분
     return null;
   }
   const cv = ((w.creaters && w.creaters.voice_by) || []).map((x) => x.name);
@@ -237,6 +244,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const CACHE_KEEP = 100; // 즐겨찾기가 아닌 작품은 최근 것만 저장(폰에서 저장이 느려지지 않게)
   const HISTORY_MAX = 12;
   const FAV_TTL = 60 * 60 * 1000; // 즐겨찾기 가격 확인은 1시간 이내 기록이면 다시 받지 않는다
+  const FAV_KEEP = 24 * 3600 * 1000; // DLsite 가격이 그대로면 dlwatcher 기록을 이만큼 재사용(평균가·최저가 갱신용 하루 한 번)
   const FAV_GAP = 30 * 60 * 1000; // 화면을 열 때 마지막 확인이 이보다 오래됐으면 다시 확인
   const CACHE_KEY = "dlws_cache6"; // 데이터 모양이 바뀌면 키를 올려서 옛 캐시를 버린다
   const SEARCH_FLOORS = ["girls", "bl"]; // 여성향·BL만 검색(각 층에 18禁·전연령이 같이 나온다)
@@ -308,7 +316,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!m) return "";
     const len = m[2].length;
     const folder = m[1] + String(Math.ceil(parseInt(m[2], 10) / 1000) * 1000).padStart(len, "0");
-    return `https://img.dlsite.jp/resize/images2/work/doujin/${folder}/${id}_img_main_240x240.jpg`;
+    const kind = { BJ: "books", VJ: "professional", VE: "professional" }[m[1]] || "doujin"; // 책·상업 작품은 표지 폴더가 다르다
+    return `https://img.dlsite.jp/resize/images2/work/${kind}/${folder}/${id}_img_main_240x240.jpg`;
   }
   const dlsiteUrl = (id) => `https://www.dlsite.com/${state.site}/work/=/product_id/${id}.html`;
 
@@ -414,15 +423,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   async function fetchInfo(id) {
+    let down = false; // dlwatcher 일시 오류(연결 실패·5xx·429): 이때 받은 대체 정보는 저장하지 않는다
     try {
       const r = await window.fetch(`/product/${id}.json`);
       if (r.ok) {
         // 없는 품번은 404 HTML이 오기도 하므로 JSON 파싱 실패 = dlwatcher에 없는 작품으로 본다
-        const j = JSON.parse(await r.text());
+        let j = null;
+        try {
+          j = JSON.parse(await r.text());
+        } catch (e) {
+          /* 없는 작품 */
+        }
         if (j && j.productId) return parseDlw(j);
-      }
+      } else if (r.status >= 500 || r.status === 429) down = true;
     } catch (e) {
-      /* dlwatcher에 없는 작품이거나 일시 오류 → DLsite로 대체 */
+      down = true; // → DLsite로 대체
     }
     const d = await send({ type: "product", site: state.site, id });
     if (!d) return null;
@@ -441,6 +456,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return {
       tracked: false, id: d.id, name: d.name, maker: d.maker, thumb: thumbFromId(d.id),
       cv: d.cv, authors: d.authors || [], price: d.price, regular: d.regularPrice, rate: d.rate, features: [], lowest: null, years: {}, avgSale: null,
+      tmp: down || undefined,
     };
   }
 
@@ -474,7 +490,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       running++;
       fetchInfo(job.id)
         .then((d) => {
-          if (d) {
+          if (d && !d.tmp) {
             cache.set(job.id, { t: Date.now(), d });
             scheduleCacheSave();
           }
@@ -735,6 +751,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   function evalNews(id, info) {
     const f = state.favs[id];
+    if (info && info.tmp) return; // dlwatcher 일시 오류: 기존 새소식은 그대로 둔다
     if (!f || !info || !info.tracked) return void news.delete(id);
     if (!f.seen) {
       // seen이 없는 즐겨찾기: 지금 상태를 기준으로 삼고 알림은 만들지 않는다.
@@ -785,9 +802,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!ids.length || favCheck.running) return;
     favCheck.running = true;
     try {
+      // DLsite 묶음 가격(50개에 요청 1건)을 먼저 보고, 저장된 가격과 같으면 dlwatcher에 다시 묻지 않는다(하루 지나면 새로 받음).
+      const cached = (id) => {
+        const c = cache.get(id);
+        return !force && c && Date.now() - c.t < FAV_KEEP ? c : null;
+      };
+      const lives = new Map(await Promise.all(ids.filter(cached).map((id) => getLive(id).then((d) => [id, d]))));
       await Promise.all(
         ids.map((id) =>
-          getInfo(id, { fav: true, maxAge: force ? 0 : FAV_TTL })
+          (cached(id) && lives.get(id) && lives.get(id).price === cached(id).d.price
+            ? Promise.resolve(cached(id).d)
+            : getInfo(id, { fav: true, maxAge: force ? 0 : FAV_TTL }))
             .then((info) => info && evalNews(id, info))
             .catch(() => {})
         )
@@ -967,7 +992,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         )
       );
     } else {
-      parts.push(h("div", { class: "dlws-note" }, "가격 기록 없음"));
+      parts.push(h("div", { class: "dlws-note" }, info.tmp ? "dlwatcher 연결 오류 — 잠시 뒤 다시" : "가격 기록 없음"));
     }
     const vc = state.mode === "code" && state.code && state.code.data;
     if (vc && vc.viaOriginal === info.id) parts.push(h("div", { class: "dlws-note" }, `${state.code.id} 번역판은 기록이 없어 원본(${info.id}) 기준`));
@@ -1115,7 +1140,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       id: o.id,
       name: String(o.name || "").slice(0, 300),
       maker: String(o.maker || "").slice(0, 200),
-      thumb: typeof o.thumb === "string" && /^(https:\/\/|\/)/.test(o.thumb) ? o.thumb : "",
+      thumb: typeof o.thumb === "string" && /^(https:\/\/|\/(?!\/))/.test(o.thumb) ? o.thumb : "",
       note: String(o.note || "").slice(0, 300),
       addedAt: n(o.addedAt) || Date.now(),
       price: n(o.price),
@@ -1388,7 +1413,31 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     Object.assign(state, { tab: v.tab, mode: v.mode, query: v.query, res: v.res, code: v.code });
     els.input.value = v.query;
     renderBody();
+    resumeView(state.seq);
     if ((v.tab === "favs" || v.tab === "news") && favCount() && Date.now() - favCheck.last > FAV_GAP) checkFavs();
+  }
+  // 되돌아온 화면에 끊긴 요청("불러오는 중")이 남아 있으면 다시 받는다(안 그러면 "검색 중…"에서 멈춘다).
+  function resumeView(seq) {
+    const c = state.code;
+    if (state.mode === "code" && c && c.loading) {
+      getInfo(c.id).then(
+        (d) => {
+          if (seq !== state.seq) return;
+          if (d) c.data = d;
+          else c.error = `${c.id} 작품을 찾지 못했어요.`;
+          c.loading = false;
+          renderBody(true);
+        },
+        (e) => {
+          if (seq !== state.seq) return;
+          c.error = e.message;
+          c.loading = false;
+          renderBody(true);
+        }
+      );
+    }
+    const stuck = Object.keys(state.res).filter((k) => state.res[k].loading);
+    if (stuck.length) Promise.all(stuck.map((k) => loadPage(k, state.res[k].page + 1, seq))).then(() => seq === state.seq && renderBody(true));
   }
   function onPop(e) {
     if (skipPop > 0) return void skipPop--;
@@ -1509,10 +1558,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const t = e.target;
         const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
         if (e.key === "Escape" && state.open) setOpen(false);
-        else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-          e.preventDefault();
-          setOpen(true);
-        } else if (e.key === "/" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        else if (e.key === "/" && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
           e.preventDefault();
           setOpen(true);
         }
