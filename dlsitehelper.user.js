@@ -3560,6 +3560,7 @@ li._cart_item .dlch,li._cart_items .dlch{margin-bottom:8px!important}
 .dlrow.dlrc{position:absolute!important;left:0;top:0;right:0;height:0!important;min-height:0!important;margin:0!important;padding:0!important}
 .dlrow.dlrc .dlty{position:absolute;left:var(--tl,8px);top:var(--tt,101px);margin:0!important}
 .dlrow.dlrc .dlw{position:absolute;right:10px;top:12px;margin:0!important}
+.dlrow.dlrc ~ dd.n_work_name,.dlrow.dlrc ~ dd.work_name{padding-right:28px!important;box-sizing:border-box}
 /* 0.53.0 번역 허가 목록 줄·번역 ○/✕ 딱지·이름 꾹 메뉴·메뉴 글씨 얇게(글씨 400~500, 색은 켜진 것만 분홍) */
 #dltr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px;font-family:Pretendard,system-ui,sans-serif}
 #dltr button{height:32px;padding:0 13px;border:0;border-radius:16px;background:#f0eeef;color:#555;font:500 13px/1 Pretendard,system-ui,sans-serif;cursor:pointer}
