@@ -3328,6 +3328,8 @@ li.dlkind dd.work_categories,li.dlkind .work_category{display:none!important}
 li._cart_item dd.n_work_option + dd.cart_item_foot,li._cart_items dd.n_work_option + dd.cart_item_foot{width:auto!important;margin-left:180px!important;margin-top:-20px!important;align-self:flex-start;text-align:left;position:relative;z-index:2}
 /* 0.50.2 사이트 언어·연령 딱지(.n_work_option 안 span: 한국어·전연령 등)도 우리 칩과 같은 높이·모양·글자 가운데로(높이 18px·모서리 2px로 어긋나 보이던 것) */
 li.n_work_list_item dd.n_work_option{align-items:center;gap:5px}
+/* 0.58.7 사용자: 장바구니 D-5·쿠폰 줄이 할인율 칸에 붙어 답답함 → 위 6px·칸 사이 7px */
+li._cart_item dd.n_work_option,li._cart_items dd.n_work_option{margin-top:6px!important;gap:5px 7px!important}
 li.n_work_list_item dd.n_work_option > span:not(:empty):not([class*="icon_REV"]){display:inline-flex!important;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);margin:0!important;padding:1px 6px 0!important;border-radius:5px!important;font-family:system-ui,sans-serif;font-weight:800!important;font-size:calc(var(--dlz,1)*10px)!important;line-height:1!important}
 li._cart_item dd.cart_item_foot,li._cart_items dd.cart_item_foot{white-space:nowrap}
 .dlrow .dlty{flex:none;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);border-radius:5px;padding:1px 6px 0;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*10px);line-height:1;white-space:nowrap}
