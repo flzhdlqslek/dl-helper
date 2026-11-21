@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.58.3
+// @version      0.58.4
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -32,6 +32,10 @@
  *  10. panel    설정 버튼과 바텀 시트 설정 창.
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
+ *
+ * 0.58.4 (로그인 화면 시험)
+ *   - 격자 카드가 거르기로 숨겨져도 보이던 것 고침(li.dlgrid 숨김이 !important flex를 이김). OURS에 .dlcpn.
+ *   - 가진 쿠폰: 쿠폰함의 conditions.custom_genre 배열·품번 목록 쿠폰도 읽음(전엔 10종 중 1종만 잡혀 장바구니 쿠폰 딱지 0).
  *
  * 0.58.3 (기능 전수 검사 test/func-audit.test.js가 찾은 고장)
  *   - ↺: 이벤트 화면은 사이트 쿼리·연령·가격까지, 검색은 연령·가격까지 지움. 이벤트 연령·가격은 캐시 안 하고 매번 읽음(가끔 안 먹던 것). 이벤트 필터 기본 대상 = 지금 층.
@@ -391,7 +395,7 @@
   const blockSet = () => blockSet.cache || (blockSet.cache = new Set(String(store.get('block.list', '')).split('\n').map(normName).filter(Boolean)));
   const PRICE_RE = /\d[\d,.]*\s*(?:円|JPY|원|KRW|USD|CNY|TWD|HKD|EUR|元)|[$₩¥€]\s*\d/i; // 가격이 그려졌는지 판단(늦게 로드되는 카드 대응)
   const PID_RE = /product_id\/([A-Za-z]{2}\d{6,8})/;
-  const OURS = '#dllib,#dllsh,.dllh,#dlnmm,#dltr,.dlwt,.dltg,#dlwp,#dlh,#dlsale,#dlbar,#dlsheet,.dlva,.dlpn,.dlx,.dlw,.dlcp,.dlrow,.dlact,.dlsl,.dlpk,.dlch,.dldue,.dlty'; // 이 스크립트가 만든 요소
+  const OURS = '#dllib,#dllsh,.dllh,#dlnmm,#dltr,.dlwt,.dltg,#dlwp,#dlh,#dlsale,#dlbar,#dlsheet,.dlva,.dlpn,.dlx,.dlw,.dlcp,.dlrow,.dlact,.dlsl,.dlpk,.dlch,.dlcpn,.dldue,.dlty'; // 이 스크립트가 만든 요소
   const CACHE_MS = 2 * 3600 * 1000; // 일본어 첫 화면(할인 배너·이벤트 목록) 캐시. 30분 → 2시간(요청 1/4, 0.38.1)
   const DLW_URL = (id) => `https://dlwatcher.com/product/${encodeURIComponent(id)}`;
   const FAB_LONG_MS = 450; // 버튼을 이만큼 꾹 누르면 설정 시트
@@ -2124,7 +2128,12 @@
           if (!Array.isArray(arr)) throw new Error('쿠폰함 형식 다름');
           const all = {};
           for (const c of arr) {
-            const keys = [...new Set([...JSON.stringify(c).matchAll(/custom_genres\/([A-Za-z0-9_]+)/g)].map((m) => m[1]))];
+            // 0.58.4 대상 키는 conditions.custom_genre 배열에도 있다(주소 글자만 보면 10종 중 1종만 잡혔음). 품번 목록 쿠폰은 'pid:쿠폰번호' 키에 품번을 담는다
+            const cond = c.conditions || {};
+            const keys = [...new Set([...JSON.stringify(c).matchAll(/custom_genres\/([A-Za-z0-9_]+)/g)].map((m) => m[1])
+              .concat((Array.isArray(cond.custom_genre) ? cond.custom_genre : []).map(String).filter((k) => /^[A-Za-z0-9_]+$/.test(k))))];
+            const pids = Array.isArray(cond.product_id) ? cond.product_id.map(String).filter((p) => /^[A-Z]{2}\d{6,8}$/.test(p)) : [];
+            if (pids.length && !keys.length) keys.push('pid:' + String(c.coupon_id || c.id || pids[0]).replace(/[^A-Za-z0-9_]/g, ''));
             const until = Date.parse(String(c.end_date || '').replace(' ', 'T') + '+09:00') || 0;
             const pct = c.discount_type === 'rate' ? +c.discount : 0;
             const need = +((c.conditions && c.conditions.post_condition && c.conditions.post_condition.count) || 1) || 1; // 2작품 이상 쿠폰은 2
@@ -2134,6 +2143,7 @@
               if (pct) o.need[pct] = Math.min(o.need[pct] || need, need);
               if (!o.title || pct >= Math.max(...o.pcts)) o.title = String(c.coupon_name || '').slice(0, 80);
               o.until = Math.max(o.until, until);
+              if (id.startsWith('pid:')) o.pids = [...new Set((o.pids || []).concat(pids))];
             }
           }
           for (const o of Object.values(all)) o.pcts.sort((a, b) => a - b);
@@ -2242,12 +2252,20 @@
     },
     // 작품 하나가 고른 쿠폰 대상인가: true/false, 아직 작품 정보를 못 받았으면 null(이때는 보여 둔다)
     match(ids, pid) {
+      if (pid && ids.some((k) => k.startsWith('pid:') && ((coupon.get(k) || {}).pids || []).includes(pid))) return true; // 품번 목록 쿠폰은 작품 정보 없이 안다
       const ks = pid ? voice.couponsFor(pid) : [];
       return ks === null ? null : ks.some((k) => ids.includes(k));
     },
+    // 작품의 쿠폰 키: 작품 정보의 custom_genres + 그 품번이 든 품번 목록 쿠폰
+    keysFor(pid) {
+      const ks = pid ? voice.couponsFor(pid) : [];
+      if (!pid) return ks;
+      const pk = coupon.ids('*').filter((k) => k.startsWith('pid:') && ((coupon.get(k) || {}).pids || []).includes(pid));
+      return ks === null ? (pk.length ? pk : null) : ks.concat(pk);
+    },
     // 카드 딱지: 1개부터 쓰는 쿠폰 중 최고율, 그보다 높은 '2개 이상' 쿠폰, 묶음 할인. 아직 모르면 null
     badges(pid) {
-      const ks = pid ? voice.couponsFor(pid) : [];
+      const ks = coupon.keysFor(pid);
       if (ks === null) return null;
       let one = 0, multi = 0, multiN = 0;
       const live = new Set(coupon.ids('*')); // 기한이 지난 쿠폰은 빼고
@@ -3274,6 +3292,8 @@ html.dlwish .work_bottom .work_labels{display:none!important}
 .dlact .dlcart svg{width:15px;height:15px;flex:none;margin-right:4px;fill:currentColor}
 /* 0.55.0 격자 카드: 버튼 줄을 카드 바닥에 붙여 카드마다 높이가 달라도 한 줄에 맞춘다(제목 말줄임은 하지 않음) */
 li.dlgrid.dlhas{display:flex!important;flex-direction:column}
+/* 0.58.4 위 !important가 거르기의 숨김(style.display=none)까지 이겨서 쿠폰·AI·차단·単話로 거른 격자 카드가 그대로 보였다(로그인 실제 화면: 2/30인데 30장 보임) */
+li.dlgrid[style*="display: none"],li.dlgrid[style*="display:none"]{display:none!important}
 li.dlgrid.dlhas>.dlact{margin-top:auto!important}
 .dlact button{flex:none;height:34px;display:flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .dlact .dlfav{width:74px;background:#fff;box-shadow:inset 0 0 0 1px #666}
