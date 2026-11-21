@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.58.7
+// @version      0.59.0
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -32,6 +32,10 @@
  *  10. panel    설정 버튼과 바텀 시트 설정 창.
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
+ *
+ * 0.59.0 (사용자 요청) 장바구니 쪼개 사기: 사이트 쿠폰 칸 안 한 줄 '2번 나눠 사면 ○円(−○)' → 창에 차례별 작품 수·쿠폰·금액·[이것만 카트에].
+ *   - 쿠폰(1주문 1장·대상 전부 작품마다 버림·1회용·상한·N작품 이상)·묶음(사이트 Bulkbuy와 같게)을 넣어 최대 4번까지 계산. 요청 없음(쿠폰함 응답에서 쿠폰별 조건도 저장).
+ *   - 바꾼 함수: split(새), coupon.refreshHeld, cart.paint, LINE.cr, CSS(.dlsplit·.dlsp-*).
  *
  * 0.58.7 (사용자 결정, 장바구니 카드)
  *   - 형식 칸은 사이트 띠(사진 아래 꽉 찬 '보이스・ASMR')를 그대로 둠, 마감(D-5)은 쿠폰 줄 맨 앞(B안: D-5·쿠폰·나중에 산다 한 줄).
@@ -410,7 +414,7 @@
   const blockSet = () => blockSet.cache || (blockSet.cache = new Set(String(store.get('block.list', '')).split('\n').map(normName).filter(Boolean)));
   const PRICE_RE = /\d[\d,.]*\s*(?:円|JPY|원|KRW|USD|CNY|TWD|HKD|EUR|元)|[$₩¥€]\s*\d/i; // 가격이 그려졌는지 판단(늦게 로드되는 카드 대응)
   const PID_RE = /product_id\/([A-Za-z]{2}\d{6,8})/;
-  const OURS = '#dllib,#dllsh,.dllh,#dlnmm,#dltr,.dlwt,.dltg,#dlwp,#dlh,#dlsale,#dlbar,#dlsheet,.dlva,.dlpn,.dlx,.dlw,.dlcp,.dlrow,.dlact,.dlsl,.dlpk,.dlch,.dlcpn,.dldue,.dlty'; // 이 스크립트가 만든 요소
+  const OURS = '.dlsplit,#dllib,#dllsh,.dllh,#dlnmm,#dltr,.dlwt,.dltg,#dlwp,#dlh,#dlsale,#dlbar,#dlsheet,.dlva,.dlpn,.dlx,.dlw,.dlcp,.dlrow,.dlact,.dlsl,.dlpk,.dlch,.dlcpn,.dldue,.dlty'; // 이 스크립트가 만든 요소
   const CACHE_MS = 2 * 3600 * 1000; // 일본어 첫 화면(할인 배너·이벤트 목록) 캐시. 30분 → 2시간(요청 1/4, 0.38.1)
   const DLW_URL = (id) => `https://dlwatcher.com/product/${encodeURIComponent(id)}`;
   const FAB_LONG_MS = 450; // 버튼을 이만큼 꾹 누르면 설정 시트
@@ -861,6 +865,7 @@
     ban: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM6.3 6.3l11.4 11.4',
     bm: 'M7 4h10v16l-5-3.5L7 20z',
     hl: 'M12 20.5s-7.5-4.7-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.5-7.5 10.2-7.5 10.2z', // 0.54.0 하트 선
+    cr: 'M10 6l6 6-6 6', // 0.59.0 오른쪽 꺾쇠(쪼개 사기 줄)
   };
   function icon(k) {
     const NS = 'http://www.w3.org/2000/svg';
@@ -2178,8 +2183,9 @@
         .then((arr) => {
           net.good();
           if (!Array.isArray(arr)) throw new Error('쿠폰함 형식 다름');
-          const all = {};
+          const all = {}, rules = [];
           for (const c of arr) {
+            safe(() => rules.push(split.rule(c))); // 0.59.0 쪼개 사기용 쿠폰별 조건(같은 응답, 요청 없음)
             // 0.58.4 대상 키는 conditions.custom_genre 배열에도 있다(주소 글자만 보면 10종 중 1종만 잡혔음). 품번 목록 쿠폰은 'pid:쿠폰번호' 키에 품번을 담는다
             const cond = c.conditions || {};
             const keys = [...new Set([...JSON.stringify(c).matchAll(/custom_genres\/([A-Za-z0-9_]+)/g)].map((m) => m[1])
@@ -2203,6 +2209,7 @@
           const before = new Set(Object.keys(store.get('coupons', {}) || {}));
           if (Object.keys(all).some((id) => !before.has(id))) { voice.cpCache = {}; voice.cpDirty = true; voice.flushSaves(); } // 새 쿠폰이 생기면 작품별 기록을 다시 받는다
           store.set('coupons', all);
+          store.set('coupons.rules', rules);
           store.set('coupons.held', { t: Date.now(), ok: true });
           coupon.invalidateCache();
           setText('dlh-cp', `쿠폰: 쿠폰함에서 ${Object.keys(all).length}종 확인`);
@@ -2504,6 +2511,7 @@
       list.syncFab();
       if (cart.pk) cart.pickPaint();
       coupon.refreshHeld().then((did) => did && cart.paint());
+      safe(() => split.paint());
       const known = coupon.ids('*');
       if (!known.length) return;
       const need = [];
@@ -2514,6 +2522,201 @@
         if (voice.couponsFor(id) === null) need.push(id); // 0.50.0 칩은 list.deco가 그린다(요청은 그대로)
       }
       if (need.length) coupon.checkSoon(need);
+    },
+  };
+
+  /* ========== 7.55 split: 장바구니 쪼개 사기(0.59.0) ==========
+     카트 작품을 몇 번(최대 4번)에 나눠 사면 쿠폰·묶음 할인으로 가장 싼지 계산한다. 요청 없음 — 카드 data-*(price·custom_genres·site-id·bulkbuy_*),
+     쿠폰함 응답(refreshHeld가 쿠폰별 조건을 coupons.rules에 같이 저장), 사이트 전역 Bulkbuy._info만 쓴다.
+     규칙(2026-11-21 쿠폰함 condition_info·사이트 Bulkbuy.sort): 한 주문에 쿠폰 1장, 대상 작품 전부에 작품마다 버림으로 할인(사이트 합계 11,486円과 일치),
+     best_price_flg = 가장 비싼 1작품만, maximum_applicable_price = 동인 층 작품 값 상한, post_condition.count = N작품 이상, 1회용(is_multiple_use false)은 한 주문에만.
+     묶음은 같은 주문 안에서 사이트와 같게 먼저 매기고 그 값에 쿠폰(추측: 다른 도구의 규칙). 결과는 '예상' — 결제 화면 금액이 정답.
+     실행 = '이것만 카트에' → 그 차례 품번만 카트에 남기고 나머지는 '나중에 산다'(cart.pickApply, 옮기는 수만큼 사이트 링크). 차례는 cart.plan에 기억해 다음 차례 작품을 '나중에 산다'에서도 센다 */
+  const split = {
+    K: 4,
+    DOUJIN: ['home', 'maniax', 'girls', 'bl', 'app', 'appx', 'ai', 'aix'],
+    sig: '',
+    res: null,
+    asked: false,
+    rule(c) {
+      const cond = c.conditions || {}, pc = cond.post_condition || {};
+      const arr = (v) => (Array.isArray(v) ? v.map(String) : []);
+      const keys = arr(cond.custom_genre).filter((k) => /^[A-Za-z0-9_]+$/.test(k));
+      const pids = arr(cond.product_id).filter((p) => /^[A-Z]{2}\d{6,8}$/.test(p));
+      const t = (s) => Date.parse(String(s || '').replace(' ', 'T') + '+09:00') || 0;
+      return { id: String(c.coupon_id || ''), name: String(c.coupon_name || '').slice(0, 60), type: c.discount_type === 'price' ? 'price' : 'rate', d: +c.discount || 0,
+        keys, pids, sites: arr(cond.site_ids).map((s) => s.replace(/touch$/, '')), max: +cond.maximum_applicable_price || 0, best: !!cond.best_price_flg,
+        cnt: Math.max(1, +pc.count || 1), min: Math.max(+cond.price_sum || 0, +pc.price || 0), multi: !!c.is_multiple_use, from: t(c.start_date), until: t(c.end_date), out: !!c.is_limited_exceeded };
+    },
+    rules() {
+      const now = Date.now();
+      return (store.get('coupons.rules', null) || []).filter((r) => r && r.d > 0 && !r.out && (!r.from || r.from <= now) && (!r.until || r.until > now));
+    },
+    item(li) {
+      const d = li.dataset;
+      let g = [];
+      try { g = JSON.parse(d.custom_genres || '[]'); } catch (e) { g = []; }
+      return { id: d.workno || d.productId || '', p: +d.price || 0, site: String(d.siteId || '').replace(/touch$/, ''), g: Array.isArray(g) ? g.map(String) : [],
+        nr: d.is_noreduction === '1', bk: d.bulkbuy_key || '', bp: +d.bulkbuy_price || 0 };
+    },
+    bulk() { const w = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window; return (w.Bulkbuy && w.Bulkbuy._info) || {}; },
+    // 한 주문 안의 작품 값(묶음 먼저). 사이트 Bulkbuy.sort와 같게: 비싼 순, per_items 이상이면 items_or_more_flg면 전부·아니면 배수만, limit_items 상한, 필수 작품
+    prices(its) {
+      const P = new Map(its.map((x) => [x, x.p])), info = split.bulk(), by = {};
+      for (const x of its) if (x.bk && x.bp && info[x.bk]) (by[x.bk] = by[x.bk] || []).push(x);
+      for (const [k, arr] of Object.entries(by)) {
+        const f = info[k], per = +f.per_items || 0;
+        if (!per || arr.length < per) continue;
+        if (Array.isArray(f.required_worknos) && !f.required_worknos.every((w) => arr.some((x) => x.id === w))) continue;
+        arr.sort((a, b) => b.p - a.p);
+        let n = +f.items_or_more_flg ? arr.length : Math.floor(arr.length / per) * per;
+        if (+f.limit_items && n > +f.limit_items) n = +f.limit_items;
+        for (const x of arr.slice(0, n)) P.set(x, x.bp);
+      }
+      return P;
+    },
+    elig(r, x, p) {
+      if (x.nr) return false; // 추측: 쿠폰 불가 작품 표시
+      if (r.keys.length) return x.g.some((k) => r.keys.includes(k));
+      if (r.pids.length) return r.pids.includes(x.id);
+      if (r.sites.length && !r.sites.includes(x.site)) return false;
+      return !(r.max && split.DOUJIN.includes(x.site) && p > r.max); // 상한은 동인 층만(쿠폰 안내 글)
+    },
+    disc(r, its, P) {
+      let e = its.filter((x) => split.elig(r, x, P.get(x)));
+      if (r.best) e = e.sort((a, b) => P.get(b) - P.get(a)).slice(0, 1);
+      if (!e.length || e.length < r.cnt) return 0;
+      if (r.min && its.reduce((s, x) => s + P.get(x), 0) < r.min) return 0;
+      const sum = e.reduce((s, x) => s + P.get(x), 0);
+      return r.type === 'price' ? Math.min(r.d, sum) : e.reduce((s, x) => s + Math.floor(P.get(x) * r.d / 100), 0);
+    },
+    // 주문 여러 개의 합계. 주문마다 쿠폰 후보 상위 4장 중에서 1회용이 겹치지 않게 가장 많이 깎이는 조합(주문 ≤ 4라 5^4 이하)
+    plan(orders, rules, memo) {
+      const os = orders.map((its) => {
+        const key = its.map((x) => x.id).sort().join(',');
+        let o = memo.get(key);
+        if (!o) {
+          const P = split.prices(its);
+          o = { sub: its.reduce((s, x) => s + P.get(x), 0), opts: rules.map((r, i) => [i, split.disc(r, its, P)]).filter((v) => v[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 4) };
+          memo.set(key, o);
+        }
+        return o;
+      });
+      let best = { d: -1, pick: [] };
+      const used = new Set(), pick = [];
+      const go = (i, d) => {
+        if (i === os.length) { if (d > best.d) best = { d, pick: pick.slice() }; return; }
+        for (const [ri, v] of os[i].opts) {
+          const one = !rules[ri].multi;
+          if (one && used.has(ri)) continue;
+          if (one) used.add(ri);
+          pick.push([ri, v]); go(i + 1, d + v); pick.pop();
+          if (one) used.delete(ri);
+        }
+        pick.push([-1, 0]); go(i + 1, d); pick.pop();
+      };
+      go(0, 0);
+      return { total: os.reduce((s, o) => s + o.sub, 0) - best.d, orders: orders.map((its, i) => ({ its, sub: os[i].sub, rule: best.pick[i][0] >= 0 ? rules[best.pick[i][0]] : null, d: best.pick[i][1] })) };
+    },
+    // 씨앗(전부 한 주문 / 작품마다 혼자 가장 많이 깎이는 쿠폰끼리) → 작품 하나 옮기기·두 주문 합치기로 더 싸지면 받아들인다(평가 3000번 상한)
+    solve(items, rules) {
+      const memo = new Map(), val = (g) => split.plan(g, rules, memo).total;
+      let evals = 0;
+      const climb = (g) => {
+        let cur = val(g), moved = true;
+        while (moved && evals < 3000) {
+          moved = false;
+          for (const x of items) {
+            const from = g.findIndex((o) => o.includes(x));
+            for (let t = 0; t <= g.length && !moved; t++) {
+              if (t === from || (t === g.length && g.length >= split.K)) continue;
+              const h = g.map((o) => o.slice());
+              h[from] = h[from].filter((y) => y !== x);
+              if (t === g.length) h.push([x]); else h[t].push(x);
+              const k = h.filter((o) => o.length), v = val(k); evals++;
+              if (v < cur) { g = k; cur = v; moved = true; }
+            }
+          }
+          for (let i = 0; i < g.length && !moved; i++) for (let j = i + 1; j < g.length && !moved; j++) {
+            const k = g.filter((o, n) => n !== i && n !== j).concat([g[i].concat(g[j])]), v = val(k); evals++;
+            if (v <= cur) { g = k; cur = v; moved = true; } // 같으면 주문이 적은 쪽
+          }
+        }
+        return { g, v: cur };
+      };
+      const seed = {};
+      for (const x of items) {
+        let bi = -1, bv = 0;
+        rules.forEach((r, i) => { const v = split.disc({ ...r, cnt: 1, min: 0 }, [x], new Map([[x, x.p]])); if (v > bv) { bv = v; bi = i; } });
+        (seed[bi] = seed[bi] || []).push(x);
+      }
+      let gs = Object.entries(seed).sort((a, b) => (a[0] === '-1') - (b[0] === '-1') || b[1].length - a[1].length).map((e) => e[1]);
+      while (gs.length > split.K) { const last = gs.pop(); gs[0] = gs[0].concat(last); }
+      const a = climb([items.slice()]), b = climb(gs);
+      const w = b.v < a.v || (b.v === a.v && b.g.length < a.g.length) ? b : a;
+      const one = split.plan([items], rules, memo), res = split.plan(w.g, rules, memo);
+      res.orders.sort((x, y) => y.its.length - x.its.length);
+      return { one, best: res };
+    },
+    // 화면 금액: 사이트 글자(₩·円)와 같은 돈으로. 카드 값 글자 ÷ data-price로 환산
+    money(li) {
+      const pw = li && li.querySelector('.work_price_base');
+      const n = (s) => +String(s || '').replace(/[^\d]/g, '') || 0;
+      const rate = pw && n(pw.textContent) && +li.dataset.price ? n(pw.textContent) / +li.dataset.price : 1;
+      const box = pw && pw.parentElement;
+      const pre = (box && box.querySelector('.work_price_prefix') || {}).textContent || '', suf = (box && box.querySelector('.work_price_suffix') || {}).textContent || '';
+      return (y) => pre.trim() + Math.round(y * rate).toLocaleString() + (suf.trim() || (pre.trim() ? '' : '円'));
+    },
+    savedPlan() { const s = store.get('cart.plan', null); return s && Date.now() - s.t < 3 * 864e5 && Array.isArray(s.orders) ? s.orders : []; },
+    paint() {
+      const rows = cart.rows(), inPlan = new Set(split.savedPlan().flat());
+      const use = rows.filter((r) => r.inCart || inPlan.has(r.id));
+      const rules = split.rules();
+      if (!store.get('coupons.rules', null) && !split.asked) { split.asked = true; coupon.refreshHeld(true).then((did) => did && cart.paint()); } // 0.59.0 전 기록엔 쿠폰별 조건이 없다 → 한 번 다시 받음
+      const items = use.map((r) => Object.assign(split.item(r.li), { row: r })).filter((x) => x.id && x.p > 0);
+      const sig = items.map((x) => x.id + ':' + x.p + ':' + (x.row.inCart ? 1 : 0)).join(',') + '|' + rules.map((r) => r.id).join(',');
+      if (sig !== split.sig) { split.sig = sig; split.res = items.length > 1 && rules.length ? split.solve(items, rules) : null; }
+      const r = split.res, save = r ? r.one.total - r.best.total : 0, later = items.some((x) => !x.row.inCart);
+      const show = r && r.best.orders.length > 1 && (save > 0 || later);
+      let line = document.querySelector('.dlsplit');
+      if (!show) { if (line) line.remove(); return; }
+      const fmt = split.money(items[0].row.li);
+      // 사이트가 보여 주는 '쿠폰 쓴 한 번 합계'와 우리 한 주문 계산이 1% 넘게 다르면 규칙을 잘못 안 것이라 안 보인다
+      const site = document.querySelector('.coupon_available_inner .total .work_price_base');
+      const sv = site ? +site.textContent.replace(/[^\d]/g, '') : 0, mine = +fmt(r.one.total).replace(/[^\d]/g, '');
+      if (sv && !later && Math.abs(sv - mine) > Math.max(3, sv * 0.01)) { if (line) line.remove(); return; }
+      const txt = save > 0 ? `${r.best.orders.length}번 나눠 사면 ${fmt(r.best.total)} (−${fmt(save)})` : `남은 차례 ${r.best.orders.length - 1}번`;
+      if (line && line.dataset.t === txt && line.isConnected) return; // 같은 글자면 건드리지 않는다(화면 감시가 다시 부르는 고리 방지)
+      if (!line) {
+        line = el('button', { class: 'dlsplit', type: 'button', onclick: (e) => { e.preventDefault(); split.open(line); } });
+        const box = document.querySelector('.coupon_available_inner');
+        if (box) box.append(line); else { const li = (rows.find((x) => x.inCart) || rows[0]).li; li.before(line); line.classList.add('band'); }
+      }
+      line.dataset.t = txt;
+      line.replaceChildren(el('span', {}, txt), icon('cr'));
+    },
+    open(opener) {
+      const r = split.res;
+      if (!r) return;
+      const fmt = split.money(cart.rows()[0] && cart.rows()[0].li);
+      const label = (u) => (u ? (u.type === 'rate' ? u.d + '% 쿠폰' : fmt(u.d) + ' 쿠폰') + (u.multi ? '' : ' · 1회용') : '쿠폰 없음');
+      const inCart = new Set(cart.rows().filter((x) => x.inCart).map((x) => x.id));
+      const parts = [sheet.sec('가장 싸게 사는 법 · 예상'),
+        el('div', { class: 'dlsp-r' }, el('span', {}, '한 번에 사면'), el('span', {}, fmt(r.one.total))),
+        el('div', { class: 'dlsp-r' }, el('span', {}, `${r.best.orders.length}번 나눠 사면`), el('b', {}, fmt(r.best.total), r.one.total > r.best.total ? el('em', {}, ' −' + fmt(r.one.total - r.best.total)) : null))];
+      r.best.orders.forEach((o, i) => {
+        const ids = o.its.map((x) => x.id), now = ids.length === inCart.size && ids.every((id) => inCart.has(id));
+        const go = el('button', { class: 'dlsp-b' + (now ? ' off' : ''), type: 'button' }, now ? '지금 카트' : '이것만 카트에');
+        go.disabled = now;
+        go.addEventListener('click', () => {
+          store.set('cart.plan', { t: Date.now(), orders: r.best.orders.map((x) => x.its.map((y) => y.id)) });
+          sheet.close();
+          cart.pk = new Set(ids);
+          cart.pickApply();
+        });
+        parts.push(el('div', { class: 'dlsp-o' }, el('div', {}, el('div', { class: 't' }, `${i + 1}번째 · ${ids.length}개 · ${fmt(o.sub - o.d)}`), el('div', { class: 'm', title: o.rule ? o.rule.name : '' }, label(o.rule))), go));
+      });
+      sheet.show(parts, opener);
     },
   };
 
@@ -3411,6 +3614,16 @@ li.dlgrid.n_work_list_item .operations .btn{width:28px!important;height:28px!imp
 #dlsheet-back{position:fixed;inset:0;background:transparent;z-index:2147483001}
 #dlsheet{position:fixed;left:10px;right:10px;z-index:2147483002;max-width:540px;margin:0 auto;padding:6px 0 10px;overflow:auto;background:var(--bg);color:var(--ink);border-radius:14px;box-shadow:0 0 0 1px rgba(0,0,0,.06),0 8px 28px rgba(0,0,0,.18);font-size:14.5px;line-height:1.3}
 #dlsheet[hidden],#dlsheet-back[hidden]{display:none}
+/* 0.59.0 쪼개 사기: 사이트 쿠폰 칸 안 한 줄(가운데, 사용자 B안) · 창 */
+.dlsplit{display:flex;align-items:center;justify-content:center;gap:2px;width:100%;box-sizing:border-box;margin:8px 0 0;padding:8px 10px;border:0;border-radius:8px;background:#f6e5eb;color:#d76088;font:800 13px/1.2 Pretendard,system-ui,sans-serif;cursor:pointer}
+.dlsplit.band{width:auto;margin:8px 10px}
+.dlsplit svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#dlsheet .dlsp-r{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;border-bottom:1px solid #f0eeef;font-size:14px}
+#dlsheet .dlsp-r b{font-size:17px}#dlsheet .dlsp-r em{font-style:normal;color:#d76088}
+#dlsheet .dlsp-o{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 12px 0;padding:9px 11px;border-radius:12px;background:#faf7f8}
+#dlsheet .dlsp-o .t{font-weight:800;font-size:14px}#dlsheet .dlsp-o .m{color:#666;font-size:12px;margin-top:2px}
+#dlsheet .dlsp-b{display:inline-flex;justify-content:center;align-items:center;flex:none;height:32px;padding:0 12px;border:0;border-radius:999px;background:#d76088;color:#fff;font-weight:800;font-size:13px;white-space:nowrap}
+#dlsheet .dlsp-b.off{background:#f0eeef;color:#888}
 #dlsheet .sec{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 6px;font-size:12px;font-weight:700;color:var(--faint)}
 #dlsheet .chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px}
 #dlsheet .chip{display:inline-flex;align-items:center;justify-content:center;height:32px;max-width:100%;padding:0 12px;border:0;border-radius:8px;background:#f0eeef;color:#3c3f46;font-size:13.5px;font-weight:600;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
