@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.58.6
+// @version      0.58.7
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -32,6 +32,10 @@
  *  10. panel    설정 버튼과 바텀 시트 설정 창.
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
+ *
+ * 0.58.7 (사용자 결정, 장바구니 카드)
+ *   - 형식 칸은 사이트 띠(사진 아래 꽉 찬 '보이스・ASMR')를 그대로 둠, 마감(D-5)은 쿠폰 줄 맨 앞(B안: D-5·쿠폰·나중에 산다 한 줄).
+ *   - D-5·쿠폰 줄이 할인율 칸에 붙어 답답하던 것: 위 6px·칸 사이 7px. 바꾼 함수: list.deco·chips, CSS(장바구니 dd.n_work_option).
  *
  * 0.58.6 (로그인 장바구니)
  *   - '나중에 산다·☆·🗑' 줄이 15장 중 14장에서 화면 밖(-500px~)으로 날아가던 것: cartFoot가 숨은 빈 라벨로 재던 것을 보이는 라벨로.
@@ -1517,8 +1521,10 @@
       const at = pw || card.querySelector('.n_work_name, .work_name, .dlrow'); // 가격 칸이 없으면 제목(없으면 제목 위 줄) 바로 아래
       for (const o of card.querySelectorAll('.dlch, .dldue, dd.n_work_option .dlcpn')) o.remove();
       // 0.51.2 장바구니: 묶음·쿠폰은 언어·연령 딱지 줄 맨 뒤로(사용자: R18 · 한국어 · 묶음 · 쿠폰 순, 한 줄)
-      const lab = route.isCart(location.pathname) && bs.length ? card.querySelector('dd.n_work_option') : null;
+      const lab = route.isCart(location.pathname) && (bs.length || (due && pw)) ? card.querySelector('dd.n_work_option') : null;
       if (lab) {
+        // 0.58.7 사용자 결정(B안): 장바구니는 마감(D-5)도 같은 줄 맨 앞 — D-5 · 쿠폰 · 나중에 산다가 한 줄(가격 아래 한 줄이 줄어듦)
+        if (due && pw) { lab.prepend(el('span', { class: 'dldue ' + due.k }, due.t)); due = null; }
         lab.append(...[...bs].sort((a, b) => (b[0] === 'bk') - (a[0] === 'bk')).map(([c, t]) => el('span', { class: 'dlcpn' + (c === 'bk' ? ' bk' : '') }, t)));
         bs = [];
       }
@@ -1607,10 +1613,12 @@
       // 0.50.0 형식 칸: 사이트 형식 띠(.work_category)의 글자·색을 그대로 옮겨 품번 옆에 둔다(장바구니는 사진 아래 사이트 띠를 그대로 둠)
       const cat = card.querySelector('.work_category');
       let ty = null;
-      if (cat) {
+      // 0.58.7 사용자 결정: 장바구니는 사이트 띠(사진 아래 꽉 찬 '보이스・ASMR')를 그대로 쓰고 우리 칸은 안 만든다
+      const inCart = route.isCart(location.pathname);
+      card.classList.toggle('dlkind', !!cat && !inCart);
+      if (cat && !inCart) {
         const cs = getComputedStyle(cat);
         ty = el('span', { class: 'dlty', style: `background:${cs.backgroundColor};color:${cs.color}` }, cat.textContent.trim().replace(/[・･].*$/, ''));
-        card.classList.add('dlkind');
       }
       r.replaceChildren(...(ty ? [ty] : []), ...bs.map(([c, t]) => el('span', { class: 'dlcpn' + (c === 'bk' ? ' bk' : '') }, t)), ...(ag ? [el('span', { class: 'dltg y', title: '한국어 번역 신청중' }, '번역 신청중')] : []), ...(pidOn ? [list.copier(el('span', { class: 'dlpn', title: '누르면 품번 복사' }, x.id), x.id)] : []), ...(onCover ? [] : [list.dlw(x.id)])); // 형식 · 품번 · DLW
       card.classList.toggle('dlgrid', onCover);
@@ -3320,6 +3328,8 @@ li.dlkind dd.work_categories,li.dlkind .work_category{display:none!important}
 li._cart_item dd.n_work_option + dd.cart_item_foot,li._cart_items dd.n_work_option + dd.cart_item_foot{width:auto!important;margin-left:180px!important;margin-top:-20px!important;align-self:flex-start;text-align:left;position:relative;z-index:2}
 /* 0.50.2 사이트 언어·연령 딱지(.n_work_option 안 span: 한국어·전연령 등)도 우리 칩과 같은 높이·모양·글자 가운데로(높이 18px·모서리 2px로 어긋나 보이던 것) */
 li.n_work_list_item dd.n_work_option{align-items:center;gap:5px}
+/* 0.58.7 사용자: 장바구니 D-5·쿠폰 줄이 할인율 칸에 붙어 답답함 → 위 6px·칸 사이 7px */
+li._cart_item dd.n_work_option,li._cart_items dd.n_work_option{margin-top:6px!important;gap:5px 7px!important}
 li.n_work_list_item dd.n_work_option > span:not(:empty):not([class*="icon_REV"]){display:inline-flex!important;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);margin:0!important;padding:1px 6px 0!important;border-radius:5px!important;font-family:system-ui,sans-serif;font-weight:800!important;font-size:calc(var(--dlz,1)*10px)!important;line-height:1!important}
 li._cart_item dd.cart_item_foot,li._cart_items dd.cart_item_foot{white-space:nowrap}
 .dlrow .dlty{flex:none;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);border-radius:5px;padding:1px 6px 0;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*10px);line-height:1;white-space:nowrap}
