@@ -1491,7 +1491,8 @@
       // 0.58.6 보이는 라벨만 기준으로 잰다. 한국어판 카드는 첫 라벨이 빈 칸(display:none)이라 그 위치(0)로 재서 줄이 화면 위 -500px~-2300px로 날아가
       //  '나중에 산다·☆·🗑'이 15장 중 14장에서 안 보였다(2026-11-21 로그인 폰 화면). 보이는 라벨이 없으면 줄을 원래 자리(라벨 아래)에 둔다
       const chips = [...o.children].filter((c) => c.getClientRects().length && c.getBoundingClientRect().width > 0);
-      if (!chips.length || !o.getClientRects().length) { f.style.setProperty('margin-top', '2px', 'important'); return; } // CSS의 -20px가 가격 줄에 겹치지 않게 제 줄에
+      // CSS의 -20px가 가격 줄에 겹치지 않게 제 줄에, [고르기]로 카드가 좁아져도 안 넘치게 오른쪽 끝에 붙인다
+      if (!chips.length || !o.getClientRects().length) { f.style.setProperty('margin-top', '2px', 'important'); f.style.setProperty('margin-left', '0px', 'important'); f.style.setProperty('align-self', 'flex-end', 'important'); return; }
       const oh = o.getBoundingClientRect(), ml = parseFloat(getComputedStyle(o).marginLeft) || 0;
       const last = chips.reduce((w, c) => Math.max(w, c.getBoundingClientRect().right), 0); // 라벨들이 끝나는 곳
       f.style.setProperty('margin-left', Math.round(ml + (last - oh.left) + 10) + 'px', 'important');
