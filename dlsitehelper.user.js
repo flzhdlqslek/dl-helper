@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.58.5
+// @version      0.58.6
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -32,6 +32,11 @@
  *  10. panel    설정 버튼과 바텀 시트 설정 창.
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
+ *
+ * 0.58.6 (로그인 장바구니)
+ *   - '나중에 산다·☆·🗑' 줄이 15장 중 14장에서 화면 밖(-500px~)으로 날아가던 것: cartFoot가 숨은 빈 라벨로 재던 것을 보이는 라벨로.
+ *   - 사용자 결정: 장바구니 형식 칸(보이스 등)은 사진 아래(쿠폰 딱지가 카드 밖으로 나가던 것). 바꾼 함수: list.cartFoot·deco, CSS(.dlrow.dlrc·.dlrcp).
+ *   - [고르기] 때 형식 칸이 체크 상자에 겹치던 것·라벨 없는 카드의 🗑이 카드 밖으로 나가던 것.
  *
  * 0.58.5 (사용자: 카드 아래 ♡·카트가 안 뜨는 카드 / 금붕어·코끼리 코드 검토가 찾은 고장)
  *   - 번역판 카드(한국어 검색 30장 중 27장)에 카트 버튼이 없던 것: 카드의 판 번호로 사이트와 같은 카트 POST(누를 때만), 판이 여럿이면 작품 화면. 작품 화면에서 ♥한 판 번호도 ♥로 보임.
@@ -1482,17 +1487,22 @@
     // 0.50.2 장바구니: 언어 라벨 → 카트로 되돌린다 → ☆ → 🗑을 한 줄로 이어 붙인다(라벨 바로 오른쪽에서 시작, 세로 가운데 같게). 위치는 카드마다 라벨 폭이 달라 재서 정한다
     cartFoot(card) {
       const o = card.querySelector('dd.n_work_option'), f = card.querySelector('dd.cart_item_foot');
-      if (!o || !f || !o.getClientRects().length || !o.firstElementChild) return;
+      if (!o || !f) return;
       for (const p of ['margin-left', 'margin-top', 'align-self']) f.style.removeProperty(p); // 0.55.0 다시 잴 때 지난번 값(아래 줄로 내린 것 등)을 지우고 잰다
-      const chips = [...o.children], oh = o.getBoundingClientRect(), ml = parseFloat(getComputedStyle(o).marginLeft) || 0;
+      // 0.58.6 보이는 라벨만 기준으로 잰다. 한국어판 카드는 첫 라벨이 빈 칸(display:none)이라 그 위치(0)로 재서 줄이 화면 위 -500px~-2300px로 날아가
+      //  '나중에 산다·☆·🗑'이 15장 중 14장에서 안 보였다(2026-11-21 로그인 폰 화면). 보이는 라벨이 없으면 줄을 원래 자리(라벨 아래)에 둔다
+      const chips = [...o.children].filter((c) => c.getClientRects().length && c.getBoundingClientRect().width > 0);
+      // CSS의 -20px가 가격 줄에 겹치지 않게 제 줄에, [고르기]로 카드가 좁아져도 안 넘치게 오른쪽 끝에 붙인다
+      if (!chips.length || !o.getClientRects().length) { f.style.setProperty('margin-top', '2px', 'important'); f.style.setProperty('margin-left', '0px', 'important'); f.style.setProperty('align-self', 'flex-end', 'important'); return; }
+      const oh = o.getBoundingClientRect(), ml = parseFloat(getComputedStyle(o).marginLeft) || 0;
       const last = chips.reduce((w, c) => Math.max(w, c.getBoundingClientRect().right), 0); // 라벨들이 끝나는 곳
       f.style.setProperty('margin-left', Math.round(ml + (last - oh.left) + 10) + 'px', 'important');
       const cy = (e) => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
       const link = f.querySelector('a') || f;
       let mt = -Math.round((oh.height + f.getBoundingClientRect().height) / 2);
       f.style.setProperty('margin-top', mt + 'px', 'important');
-      const d = cy(o.firstElementChild) - cy(link); // 라벨 글자 줄과 링크 글자 줄의 세로 차이를 한 번 더 보정
-      if (Math.abs(d) >= 0.5) f.style.setProperty('margin-top', (mt + Math.round(d)) + 'px', 'important');
+      const d = cy(chips[0]) - cy(link); // 라벨 글자 줄과 링크 글자 줄의 세로 차이를 한 번 더 보정
+      if (Math.abs(d) >= 0.5 && Math.abs(d) < 40) f.style.setProperty('margin-top', (mt + Math.round(d)) + 'px', 'important');
       // 라벨이 둘 이상(전연령·한국어 등)이라 링크가 카드 끝을 넘으면 글자가 접히므로, 그 카드만 라벨 아래 줄 오른쪽 끝으로 내린다
       const L = card.getBoundingClientRect();
       // 결정 이유: 넘침은 줄 전체(☆·🗑 포함)로, 글자 접힘은 링크 높이로 잰다(0.55.1은 링크만 봐서 뒤 칸이 카드 밖으로 나갔다, 배치 자동 시험)
@@ -1605,6 +1615,12 @@
       r.replaceChildren(...(ty ? [ty] : []), ...bs.map(([c, t]) => el('span', { class: 'dlcpn' + (c === 'bk' ? ' bk' : '') }, t)), ...(ag ? [el('span', { class: 'dltg y', title: '한국어 번역 신청중' }, '번역 신청중')] : []), ...(pidOn ? [list.copier(el('span', { class: 'dlpn', title: '누르면 품번 복사' }, x.id), x.id)] : []), ...(onCover ? [] : [list.dlw(x.id)])); // 형식 · 품번 · DLW
       card.classList.toggle('dlgrid', onCover);
       if (!r.childElementCount) r.remove(); // 보일 게 없으면(품번 꺼짐·형식 칸 없음·DLW는 표지) 빈 줄을 안 남긴다
+      // 0.58.6 사용자 결정: 장바구니는 형식 칸(보이스 등)을 사진 아래로 — 맨 위 한 줄이 비어 쿠폰 딱지가 카드 안에 들어온다(전엔 카드 밖으로 삐져나와 다음 카드에 깔림)
+      const th = route.isCart(location.pathname) && r.isConnected && r.parentElement.querySelector(':scope > dt.n_work_thumb, :scope > .work_thumb');
+      r.classList.toggle('dlrc', !!th);
+      // 결정 이유: 줄을 사진과 같은 상자(dl) 기준으로 놓는다 — [고르기]가 li를 relative로 바꾸면 줄이 li 기준이 되어 형식 칸이 체크 상자에 겹쳤다
+      if (th) r.parentElement.classList.add('dlrcp');
+      if (th) { r.style.setProperty('--tl', th.offsetLeft + 'px'); r.style.setProperty('--tt', (th.offsetTop + th.offsetHeight + 4) + 'px'); }
       let heart = null;
       const wish = route.isMy(location.pathname) || route.isRank(location.pathname); // 즐겨찾기·장바구니는 사이트가 빼기·카트 버튼을 따로 갖고 있어 ♥·장바구니 줄을 안 붙인다. 랭킹은 사용자 요청으로 작가·DLW만(0.50.0)
       if (fav.ok() && !wish) {
@@ -3545,6 +3561,11 @@ li.dlpk-off>*:not(.dlpk){opacity:.45}
 .c-productTitleBox{position:relative;padding-right:40px!important;box-sizing:border-box}
 .dlw.dlwk{position:absolute;top:8px;right:8px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:1.3px solid #222;border-radius:50%;background:#fff;color:#111;font:900 7px/1 system-ui,sans-serif;text-decoration:none;z-index:2}
 li._cart_item .dlch,li._cart_items .dlch{margin-bottom:8px!important}
+.dlrcp{position:relative!important}
+.dlrow.dlrc{position:absolute!important;left:0;top:0;right:0;height:0!important;min-height:0!important;margin:0!important;padding:0!important}
+.dlrow.dlrc .dlty{position:absolute;left:var(--tl,8px);top:var(--tt,101px);margin:0!important}
+.dlrow.dlrc .dlw{position:absolute;right:10px;top:12px;margin:0!important}
+.dlrow.dlrc ~ dd.n_work_name,.dlrow.dlrc ~ dd.work_name{padding-right:28px!important;box-sizing:border-box}
 /* 0.53.0 번역 허가 목록 줄·번역 ○/✕ 딱지·이름 꾹 메뉴·메뉴 글씨 얇게(글씨 400~500, 색은 켜진 것만 분홍) */
 #dltr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px;font-family:Pretendard,system-ui,sans-serif}
 #dltr button{height:32px;padding:0 13px;border:0;border-radius:16px;background:#f0eeef;color:#555;font:500 13px/1 Pretendard,system-ui,sans-serif;cursor:pointer}
