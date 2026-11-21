@@ -35,7 +35,7 @@
  *
  * 0.58.7 (사용자 결정, 장바구니 카드)
  *   - 형식 칸은 사이트 띠(사진 아래 꽉 찬 '보이스・ASMR')를 그대로 둠, 마감(D-5)은 쿠폰 줄 맨 앞(B안: D-5·쿠폰·나중에 산다 한 줄).
- *   - 바꾼 함수: list.deco·chips.
+ *   - D-5·쿠폰 줄이 할인율 칸에 붙어 답답하던 것: 위 6px·칸 사이 4px. 바꾼 함수: list.deco·chips, CSS(장바구니 dd.n_work_option).
  *
  * 0.58.6 (로그인 장바구니)
  *   - '나중에 산다·☆·🗑' 줄이 15장 중 14장에서 화면 밖(-500px~)으로 날아가던 것: cartFoot가 숨은 빈 라벨로 재던 것을 보이는 라벨로.
@@ -3328,8 +3328,8 @@ li.dlkind dd.work_categories,li.dlkind .work_category{display:none!important}
 li._cart_item dd.n_work_option + dd.cart_item_foot,li._cart_items dd.n_work_option + dd.cart_item_foot{width:auto!important;margin-left:180px!important;margin-top:-20px!important;align-self:flex-start;text-align:left;position:relative;z-index:2}
 /* 0.50.2 사이트 언어·연령 딱지(.n_work_option 안 span: 한국어·전연령 등)도 우리 칩과 같은 높이·모양·글자 가운데로(높이 18px·모서리 2px로 어긋나 보이던 것) */
 li.n_work_list_item dd.n_work_option{align-items:center;gap:5px}
-/* 0.58.7 사용자: 장바구니 D-5·쿠폰 줄이 할인율 칸에 붙어 답답함 → 위 6px·칸 사이 7px */
-li._cart_item dd.n_work_option,li._cart_items dd.n_work_option{margin-top:6px!important;gap:5px 7px!important}
+/* 0.58.7 사용자: 장바구니 D-5·쿠폰 줄이 할인율 칸에 붙어 답답함 → 위 6px·칸 사이 4px(7px은 사용자: 약간 넓음) */
+li._cart_item dd.n_work_option,li._cart_items dd.n_work_option{margin-top:6px!important;gap:5px 4px!important}
 li.n_work_list_item dd.n_work_option > span:not(:empty):not([class*="icon_REV"]){display:inline-flex!important;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);margin:0!important;padding:1px 6px 0!important;border-radius:5px!important;font-family:system-ui,sans-serif;font-weight:800!important;font-size:calc(var(--dlz,1)*10px)!important;line-height:1!important}
 li._cart_item dd.cart_item_foot,li._cart_items dd.cart_item_foot{white-space:nowrap}
 .dlrow .dlty{flex:none;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);border-radius:5px;padding:1px 6px 0;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*10px);line-height:1;white-space:nowrap}
