@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.58.4
+// @version      0.58.5
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -32,6 +32,12 @@
  *  10. panel    설정 버튼과 바텀 시트 설정 창.
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
+ *
+ * 0.58.5 (사용자: 카드 아래 ♡·카트가 안 뜨는 카드 / 금붕어·코끼리 코드 검토가 찾은 고장)
+ *   - 번역판 카드(한국어 검색 30장 중 27장)에 카트 버튼이 없던 것: 카드의 판 번호로 사이트와 같은 카트 POST(누를 때만), 판이 여럿이면 작품 화면. 작품 화면에서 ♥한 판 번호도 ♥로 보임.
+ *   - 이벤트·즐겨찾기에서 켠 할인이 서클·장르 목록 카드를 몰래 숨기던 것, 서클 ↺가 안 풀던 것, 검색 일본어 설정 때 한/일 알약이 안 먹던 것.
+ *   - 실패한 '전체' 세기 30분 쉼(요청 반복), 쿠폰 기록 덮어쓰기, 폴더 링크 오류, 첫 화면 DLW 다시 재기, 차단 입력 포커스, 이름 꾹 두 창, 로그인 뒤 ♥ 1분.
+ *   - 바꾼 함수: list.apply(saleSide)·resetAll·folderChip, allList.start, coupon.learn·match·rate, locale.wantFor, searchRedirectTarget, toggleLang, homeDlw, trBar, blockForm, lib cardOf, fav.refresh.
  *
  * 0.58.4 (로그인 화면 시험)
  *   - 격자 카드가 거르기로 숨겨져도 보이던 것 고침(li.dlgrid 숨김이 !important flex를 이김). OURS에 .dlcpn.
@@ -399,6 +405,16 @@
   const CACHE_MS = 2 * 3600 * 1000; // 일본어 첫 화면(할인 배너·이벤트 목록) 캐시. 30분 → 2시간(요청 1/4, 0.38.1)
   const DLW_URL = (id) => `https://dlwatcher.com/product/${encodeURIComponent(id)}`;
   const FAB_LONG_MS = 450; // 버튼을 이만큼 꾹 누르면 설정 시트
+  // 0.58.5 카트 버튼이 없는 번역판 카드: 사이트 카트 버튼이 보내는 것과 같은 요청(POST /<층>/cart/ajax mode=cart). 담기면 버튼이 회색
+  const cartAdd = (id, btn) => {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const fl = location.pathname.split('/')[1] || 'girls-touch';
+    fetch(`/${fl}/cart/ajax`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' }, body: `mode=cart&obj_nocheck=1&product_id=${encodeURIComponent(id)}&traffic_source=self` })
+      .then((r) => r.text())
+      .then((t) => { const ok = /<result_code>0<\/result_code>/.test(t); btn.classList.toggle('ok', ok); btn.classList.toggle('err', !ok); if (!ok) btn.disabled = false; })
+      .catch(() => { btn.classList.add('err'); btn.disabled = false; });
+  };
   const PICK_GAP = 400; // 0.49.0 장바구니 고르기: 사이트 링크를 차례로 누르는 간격(ms). 손으로 누르는 것보다 빠르지 않게
   const VA_PARALLEL = 1;
   const VA_GAP_MS = 1500;
@@ -547,7 +563,7 @@
       } catch (e) { /* 쿠키 접근이 막힌 문서 */ }
     },
     wantFor(path) {
-      const ja = (route.isCampaign(path) && opt('autoJa') && !locale.evOwn()) || (route.isSearch(path) && opt('searchJa'));
+      const ja = (route.isCampaign(path) && opt('autoJa') && !locale.evOwn()) || (route.isSearch(path) && opt('searchJa') && !locale.evOwn()); // 0.58.4 검색 일본어도 이 탭에서 알약으로 고르면 그걸 따른다
       return ja ? 'ja_JP' : opt('locale');
     },
     // 0.57.1 이벤트 화면에서 한/일 알약을 누르면 이 탭에서는 '이벤트 일본어 자동' 대신 고른 언어를 쓴다(누르기 전엔 일본어 고정이라 버튼이 안 먹었다)
@@ -627,7 +643,7 @@
     const u = new URL(location.href);
     if (gp) u.search = '';
     u.pathname = np === origPath ? p : np;
-    if (opt('searchJa') && u.searchParams.get('locale') !== 'ja_JP') u.searchParams.set('locale', 'ja_JP');
+    if (opt('searchJa') && !locale.evOwn() && u.searchParams.get('locale') !== 'ja_JP') u.searchParams.set('locale', 'ja_JP');
     return u.href === location.href ? null : u.href;
   }
 
@@ -1560,7 +1576,10 @@
       const pidOn = false; // 0.55.1 사용자 결정: 카드 품번 줄 뺌(DLW 꾹 복사는 그대로)
       let r = card.querySelector('.dlrow');
       const at = ttl ? r === ttl.previousElementSibling : r === tb.nextElementSibling; // 자리가 맞나(사이트가 다시 그리면 어긋난다)
-      const on = fav.has(x.id);
+      // 0.58.5 번역판은 작품 화면에서 ♥하면 살 수 있는 판 번호(data-translation-child-worknos)로 들어간다 → 그 번호도 ♥로 본다
+      const childIds = (card.dataset.translationChildWorknos || '').split(',').filter((k) => /^[A-Z]{2}\d{6,8}$/.test(k));
+      const favId = fav.has(x.id) ? x.id : (childIds.find((k) => fav.has(k)) || x.id);
+      const on = fav.has(favId);
       const sc = card.querySelector('a.btn_cart'); // 사이트 장바구니(만화 등): 숨기고 아이콘 버튼이 이걸 대신 누른다
       let act = card.querySelector(':scope > .dlact');
       const onCover = !route.isCart(location.pathname) && !route.isRank(location.pathname); // 0.50.0 사용자 결정: 즐겨찾기·검색 목록은 DLW를 표지 오른쪽 위에(list.deco)
@@ -1591,11 +1610,15 @@
       if (fav.ok() && !wish) {
         heart = el('button', { class: 'dlfav' + (on ? ' on' : ''), 'aria-label': on ? '즐겨찾기에서 빼기' : '즐겨찾기', 'aria-pressed': String(on) }, icon('hf'));
         heart.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
-        pressable(heart, () => fav.toggle(x.id, card, heart), () => fav.folder(x.id, card, heart)); // 0.49.0 짧게 = 추가·빼기, 꾹 = 폴더로 옮기기
+        pressable(heart, () => fav.toggle(favId, card, heart), () => fav.folder(favId, card, heart)); // 0.49.0 짧게 = 추가·빼기, 꾹 = 폴더로 옮기기
       }
       // 0.45.0: 맨 아래 줄 = ♥ · 장바구니(아이콘만). 사이트 버튼 줄(.item_btn_box)은 이 줄이 있을 때 숨긴다
-      const cartB = sc && !wish ? el('button', { class: 'dlcart', 'aria-label': '장바구니' }, icon('ct')) : null;
-      if (cartB) cartB.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); sc.click(); });
+      // 0.58.5 번역판 카드는 사이트가 '作品ページへ'만 주고 카트 버튼이 없다(한국어 검색 30장 중 27장, 2026-11-21 로그인 폰 화면).
+      // 카드의 data-translation-child-worknos(살 수 있는 판 번호)로 사이트 카트 버튼과 같은 POST 1번(누를 때만). 판이 여럿(자막판 등)이면 작품 화면을 연다(거기서 판을 고름)
+      const kids = sc ? [] : childIds;
+      const page = kids.length > 1 && card.querySelector('a.btn_page, a[href*="/work/=/product_id/"]');
+      const cartB = (sc || kids.length === 1 || page) && !wish ? el('button', { class: 'dlcart', 'aria-label': page ? '장바구니(작품 화면에서 판 고르기)' : '장바구니' }, icon('ct')) : null;
+      if (cartB) cartB.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); if (sc) sc.click(); else if (page) location.assign(page.href); else cartAdd(kids[0], cartB); });
       if (act) act.remove();
       if (heart || cartB) { act = el('div', { class: 'dlact' }, heart, cartB); card.append(act); card.classList.add('dlhas'); } else card.classList.remove('dlhas');
     },
@@ -1618,6 +1641,7 @@
       const couponIds = S.coupon ? coupon.ids(S.coupon) : [];
       const couponOn = couponIds.length > 0;
       const siteSide = route.isSearch(location.pathname); // 검색 목록의 할인·할인율은 사이트가 주소로 거르므로 여기서 또 거르지 않는다
+      const saleSide = siteSide || !!fsrOf(location.pathname); // 0.58.4 서클·장르·형식·할인·독점 목록도 주소로 거른다 — 이벤트·즐겨찾기에서 켠 할인이 여기로 새어 카드가 몰래 사라졌다
       const keepTanwa = route.isCart(location.pathname) || route.isWish(location.pathname); // 0.58.2 장바구니·즐겨찾기는 직접 담은 것이라 単話도 둔다
       const cpSide = route.isCampaign(location.pathname); // 0.58.0 이벤트 화면의 연령·가격은 이 쪽 안에서 거른다(사이트가 주소로 못 거름)
       let shown = 0;
@@ -1632,8 +1656,8 @@
         if (x.id && voice.couponsFor(x.id) === null) unknown.push(x.id); // 쿠폰 거르기와 카드 딱지에 쓴다
         const ok = !(x.ai && hideAiOpt) && !(mangaOnly && notManga(x.e))
           && !(bl.size && (x.names.some((n) => bl.has(n)) || x.vas.some((n) => bl.has(normName(n)))))
-          && (siteSide || !S.sale || x.sale)
-          && (siteSide || !S.rate || x.rate >= S.rate)
+          && (saleSide || !S.sale || x.sale)
+          && (saleSide || !S.rate || x.rate >= S.rate)
           && !(x.tanwa && keepTanwa === false)
           && (!cpSide || !S.age || !x.age || x.age === S.age)
           && (!cpSide || !S.price || !isFinite(x.price) || priceIn(x.price, S.price))
@@ -1855,7 +1879,7 @@
         const folderChip = () => {
           const b = chip('folder');
           const fm = new Map();
-          for (const a of document.querySelectorAll('a[href*="/wishlist/folder/=/folder_id/"]')) { const t = a.textContent.trim().replace(/\s*\(\d+\)\s*$/, ''); const k = a.href.match(/folder_id\/(\d+)/)[1]; if (t && !/PC판|PC版|DLsite/.test(t) && !fm.has(k)) fm.set(k, t); } // 0.50.1 같은 번호의 'PC판 DLsite로' 링크가 이름을 덮어쓰던 것
+          for (const a of document.querySelectorAll('a[href*="/wishlist/folder/=/folder_id/"]')) { const t = a.textContent.trim().replace(/\s*\(\d+\)\s*$/, ''); const k = (a.href.match(/folder_id\/(\d+)/) || [])[1]; if (k && t && !/PC판|PC版|DLsite/.test(t) && !fm.has(k)) fm.set(k, t); } // 0.50.1 같은 번호의 'PC판 DLsite로' 링크가 이름을 덮어쓰던 것
           const fs = [...fm.entries()];
           const cur = wishGet(location.pathname, 'folder_id') || '';
           const name = cur ? (fs.find((f) => f[0] === cur) || [0, '폴더'])[1] : '';
@@ -1884,7 +1908,10 @@
           let np = location.pathname;
           if (isSearch) {
             np = pathSet(np, ['discount_rates', 'campaign', 'order', 'page', 'genre', ...FLOOR_KEYS, 'work_type_name', ...AGE_KEYS, 'price_low', 'price_high'], [...(COUPON_RE.test(np) ? [] : [['order', DEF_ORDER]]), ...(floorDefOk(np) ? floorDefPairs() : [])]);
-          } else { S.sale = false; S.rate = 0; store.set('sb.sale', false); store.set('sb.rate', 0); }
+          } else {
+            S.sale = false; S.rate = 0; store.set('sb.sale', false); store.set('sb.rate', 0);
+            if (isCircle(np)) { const c = fsrOf(np); if (c) { const b = c.back(c.base); np = langPath(b, langDef()) || b; } } // 0.58.4 서클: 주소에 붙인 정렬·가격·형식·할인도 지운다(전엔 ↺가 아무것도 안 풀었다)
+          }
           if (wish) np = wishPath(np, { order: null, discount: null, per_page: null }); // 0.49.0 즐겨찾기: 정렬·할인만 빼기(폴더는 그대로)
           if (LANG_PAGE.test(np) && langCur(np).join() !== langDef().join()) {
             np = langPath(np, langDef()) || np;
@@ -2082,6 +2109,7 @@
       if (c && Array.isArray(c.pcts) && c.pcts.length) return c.pcts.length > 1 ? c.pcts[0] + '~' + c.pcts[c.pcts.length - 1] : String(c.pcts[0]);
       const pct = c && c.title && (c.title.match(/(\d+)\s*%\s*OFF/i) || [])[1];
       if (pct) return pct;
+      if (id.startsWith('pid:')) return ''; // 품번 목록 쿠폰: 할인율은 pcts에만 있다(정액이면 없음). id 글자로 추측하지 않는다
       const m = id.match(/coupon(\d+)/i);
       if (!m) return '';
       const d = m[1];
@@ -2133,7 +2161,8 @@
             const keys = [...new Set([...JSON.stringify(c).matchAll(/custom_genres\/([A-Za-z0-9_]+)/g)].map((m) => m[1])
               .concat((Array.isArray(cond.custom_genre) ? cond.custom_genre : []).map(String).filter((k) => /^[A-Za-z0-9_]+$/.test(k))))];
             const pids = Array.isArray(cond.product_id) ? cond.product_id.map(String).filter((p) => /^[A-Z]{2}\d{6,8}$/.test(p)) : [];
-            if (pids.length && !keys.length) keys.push('pid:' + String(c.coupon_id || c.id || pids[0]).replace(/[^A-Za-z0-9_]/g, ''));
+            const cid = String(c.coupon_id || c.id || '').replace(/[^A-Za-z0-9_]/g, '');
+            if (pids.length && !keys.length) keys.push('pid:' + (cid || pids.join('_').slice(0, 40)));
             const until = Date.parse(String(c.end_date || '').replace(' ', 'T') + '+09:00') || 0;
             const pct = c.discount_type === 'rate' ? +c.discount : 0;
             const need = +((c.conditions && c.conditions.post_condition && c.conditions.post_condition.count) || 1) || 1; // 2작품 이상 쿠폰은 2
@@ -2230,7 +2259,7 @@
       const all = store.get('coupons', {}) || {};
       for (const f of found) {
         const old = all[f.id] || {};
-        all[f.id] = { id: f.id, floor: f.floor, title: f.title || old.title || '', until: f.until || old.until || 0, seen: Date.now() };
+        all[f.id] = { ...old, id: f.id, floor: f.floor, title: f.title || old.title || '', until: f.until || old.until || 0, seen: Date.now() }; // 0.58.4 쿠폰함에서 받은 pcts·need·pids는 남긴다
       }
       store.set('coupons', all);
       coupon.invalidateCache();
@@ -2253,6 +2282,7 @@
     // 작품 하나가 고른 쿠폰 대상인가: true/false, 아직 작품 정보를 못 받았으면 null(이때는 보여 둔다)
     match(ids, pid) {
       if (pid && ids.some((k) => k.startsWith('pid:') && ((coupon.get(k) || {}).pids || []).includes(pid))) return true; // 품번 목록 쿠폰은 작품 정보 없이 안다
+      if (ids.length && ids.every((k) => k.startsWith('pid:'))) return false;
       const ks = pid ? voice.couponsFor(pid) : [];
       return ks === null ? null : ks.some((k) => ids.includes(k));
     },
@@ -2301,6 +2331,7 @@
   const TOTAL_RE = /([\d,]+)\s*(?:件中|건\s*중)/;
   const allList = {
     key: '', // 지금 받았거나 받는 중인 목록(정렬 조건은 뺌: 정렬만 바뀌면 다시 받지 않는다)
+    fail: {}, // 목록 키 → 못 센 시각
     ids: null,
     source() {
       const p = location.pathname;
@@ -2320,6 +2351,7 @@
     start(onPage) {
       const src = allList.source();
       if (!src || src.key === allList.key) return;
+      if (allList.fail[src.key] && Date.now() - allList.fail[src.key] < NET_COOL_MS) return; // 0.58.4 실패한 목록은 한동안 다시 안 센다(전엔 apply마다 모든 쪽을 다시 받았다)
       if (allList.ids && allList.idsKey !== src.key) allList.ids = null; // 다른 목록으로 바뀜
       const total = +((((document.body.textContent || '').match(TOTAL_RE)) || [])[1] || '').replace(/,/g, '');
       if (!total) return; // 사이트가 총 개수를 아직 안 그렸으면 다음에 다시 본다(전엔 이 목록을 다시 안 셌음)
@@ -2356,7 +2388,7 @@
           store.set('lists1', all);
           allList.done([...ids]);
         })
-        .catch(() => { allList.key = ''; /* 못 세면 '전체' 숫자를 안 보인다. 0.55.0: 실패한 목록은 다음에 다시 시도 */ })
+        .catch(() => { allList.fail[src.key] = Date.now(); allList.key = ''; /* 못 세면 '전체' 숫자를 안 보인다. 0.55.0: 실패한 목록은 다음에 다시 시도 */ })
         .finally(() => locale.enforce(false));
     },
     done(ids) { allList.ids = ids; allList.idsKey = allList.key; coupon.checkSoon(ids); list.scheduleApply(50); },
@@ -2496,7 +2528,8 @@
     _busy: false,
     refresh() {
       const c = fav.get();
-      if (fav._busy || Date.now() - c.t < (c.ok ? FAV_TTL : NET_COOL_MS) || !net.ok()) return;
+      // 0.58.4 로그아웃 때 받은 빈 목록은 로그인이 보이면 1분 뒤 다시 받는다(전엔 30분 동안 ♥가 전부 빈칸)
+      if (fav._busy || Date.now() - c.t < (c.ok ? FAV_TTL : fav.login() === true ? 60 * 1000 : NET_COOL_MS) || !net.ok()) return;
       fav._busy = true;
       fav.save({ ...c, t: Date.now() });
       netFetch('https://www.dlsite.com/girls/load/favorite/product', { credentials: 'include', headers: XHR }, 'text')
@@ -3304,6 +3337,7 @@ li.dlgrid.dlhas>.dlact{margin-top:auto!important}
 .dlact .dlfav.err svg{stroke:#e5322d}
 .dlact .dlfav[disabled]{opacity:.5}
 .dlact .dlcart{flex:1;min-width:0;overflow:hidden;background:#fad23a;color:#111;font:800 12px/1 system-ui,sans-serif}
+.dlact .dlcart.ok{background:#e4e4e4;color:#888}.dlact .dlcart.err{box-shadow:inset 0 0 0 2px #e5322d}
 .dlhas .item_btn_box{display:none!important}
 svg.ln{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 #dlbar .x svg,#dlh .x svg{width:16px;height:16px}
@@ -3601,7 +3635,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
     const paintFab = () => fab.replaceChildren(el('span', { class: ja() ? 'on' : '' }, '日本語'), el('span', { class: 'gp' }, '/'), el('span', { class: ja() ? '' : 'on' }, '한국어'));
     const toggleLang = () => {
       const showJa = ja(), now = opt('locale');
-      if (route.isCampaign(location.pathname) && opt('autoJa')) locale.setEvOwn(true);
+      if ((route.isCampaign(location.pathname) && opt('autoJa')) || (route.isSearch(location.pathname) && opt('searchJa'))) locale.setEvOwn(true);
       if (showJa) { if (now === 'ja_JP') store.set('locale', store.get('locale.prev', 'ko_KR') || 'ko_KR'); }
       else { if (now !== 'ja_JP') store.set('locale.prev', now); store.set('locale', 'ja_JP'); }
       applyLang();
@@ -3690,6 +3724,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
         draft.b = '';
         blSave(names, kinds);
         render();
+        const ni = document.getElementById('dlh-bl'); if (ni) ni.focus(); // 0.58.4 여러 이름을 잇달아 넣을 수 있게 키보드를 그대로 둔다
       };
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
       return [el('div', { class: 'seg' }, ...KINDS.map((k) => el('button', { class: k === blTab ? 'o' : '', 'aria-pressed': String(k === blTab), onclick: () => { blTab = k; render(); } }, k))),
@@ -4290,6 +4325,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
       const box = el('div', { class: 'dlx' }, list.dlw(id));
       h.append(box);
       list.queuePlace(box, card);
+      list.watch(box, card); // 0.58.4 사진이 늦게 뜨거나 화면을 돌리면 다시 잰다(목록 카드와 같게)
     }
   }
   // 0.53.0 작품 페이지 번역 허가 ○/✕: 작품 정보 묶음(목록이 쓰는 같은 주소) 1건. 작품 페이지에서만 +1 요청(사이트 자체 요청엔 이 값이 없음, 2026-11-18 확인)
@@ -4325,7 +4361,11 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
     const ul = document.querySelector('ul.n_work_list');
     if (!ul || !ul.parentElement) return;
     const u = new URL(location.href), K = 'translation_can_apply[0]', cur = u.searchParams.get(K);
-    if (!cur) { u.searchParams.set(K, 'KO_KR'); location.replace(u.href); return; } // 기본 한국어(사이트는 언어를 안 정하면 전부 보여 줌)
+    if (!cur) { // 기본 한국어(사이트는 언어를 안 정하면 전부 보여 줌). 0.58.4 같은 주소로 두 번은 안 연다(사이트가 값을 지우면 끝없이 다시 열 수 있었다)
+      u.searchParams.set(K, 'KO_KR');
+      let seen = false; try { seen = sessionStorage.getItem('dlh_tr') === u.href; sessionStorage.setItem('dlh_tr', u.href); } catch (e) { seen = true; }
+      if (!seen) { location.replace(u.href); return; }
+    } else try { sessionStorage.removeItem('dlh_tr'); } catch (e) { /* 막힘 */ }
     const goQ = () => { u.searchParams.delete('page'); location.assign(u.href); };
     const chips = TR_LANGS.map(([c, t]) => el('button', { class: c === cur ? 'on' : '', 'aria-pressed': String(c === cur), onclick: () => { u.searchParams.set(K, c); goQ(); } }, t));
     const okey = u.searchParams.has('order[0]') ? 'order[0]' : 'order'; // 사이트 주소는 order=price(배열 아님)
@@ -4551,7 +4591,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
   // 카드 꾹(0.5초) = 위 sheet. 꾹 누른 뒤 따라오는 클릭(작품 열기)은 막는다. ♡·시트 위는 제외
   function libLongPress() {
     let timer = 0, x0 = 0, y0 = 0, hit = null;
-    const cardOf = (e) => e.target.closest && !e.target.closest('.dllh, #dllsh, #dllib') && e.target.closest('.dllb');
+    const cardOf = (e) => e.target.closest && !e.target.closest('.dllh, #dllsh, #dllib, .n_maker_name a, .maker_name a, .author a') && e.target.closest('.dllb'); // 0.58.4 이름 꾹은 이름 메뉴만(두 창이 겹쳐 떴다)
     document.addEventListener('pointerdown', (e) => {
       const c = cardOf(e);
       clearTimeout(timer); hit = null;
