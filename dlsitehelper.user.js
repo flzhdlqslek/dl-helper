@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.62.1
+// @version      0.62.2
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -33,6 +33,9 @@
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
  *
+ * 0.62.2 (사용자) 격자·장바구니에서 연령 딱지가 있는 카드에 사이트 언어 딱지가 다시 떠 언어가 2개 보이던 것 고침. 격자 제목은 2줄까지.
+ *   - 할인율 색: 30% 미만 회색 · 30~49 · 50~79 · 80% 이상 검정 바탕 노란 글씨(구간은 이상·미만, guide/ui-0.62-색결정표.png C안).
+ *   - 바꾼 것: offTone, CSS(dd.n_work_option 딱지 규칙에 .dlhid·격자 언어 제외, li.dlgrid 제목 줄 수, .dlsl.o1·o4 색).
  * 0.62.1 (사용자) 할인 이벤트: 사이트가 열린 직후 인기 태그 밖의 태그·(일본어 화면에서) 언어 조건을 지우고 다시 받던 것을 막음(10초 동안 사이트 요청·주소에 다시 붙임, 요청 수 그대로).
  *   - 바꾼 함수: reviewNewest(cpWant·cpAdd, fix, history.replaceState·pushState 감쌈).
  * 0.62.0 (사용자) 이벤트·묶음 할인 화면: 연령·가격·할인·쿠폰을 켜면 다른 쪽(앞 10쪽까지)의 맞는 작품을 받아 맨 앞에 모음(쪽당 요청 1, 최대 +9).
@@ -552,7 +555,7 @@
   }
   const toneOf = (n) => (n >= 50 ? 'c3' : n >= 30 ? 'c2' : n ? 'c1' : 'c0'); // 쿠폰 할인율 색
   const cpTone = (e) => (e > 30 ? 'q4' : e > 20 ? 'q3' : e > 10 ? 'q2' : 'q1'); // 0.60.0 카드 쿠폰 딱지 색(10·20·30% 구간, 사용자 결정)
-  const offTone = (p) => (p >= 80 ? 'o4' : p > 50 ? 'o3' : p > 30 ? 'o2' : 'o1'); // 0.60.0 할인율 딱지 색(30·50·80 구간, 사용자 결정)
+  const offTone = (p) => (p >= 80 ? 'o4' : p >= 50 ? 'o3' : p >= 30 ? 'o2' : 'o1'); // 0.62.2 할인율 딱지 색: 30 미만 회색·30~49·50~79·80 이상 검정(사용자 결정, 구간은 '이상·미만')
 
   // 안전 정지: 사이트가 429/403/503을 돌려주면 백그라운드 요청을 30분 멈춘다.
   const NET_COOL_MS = 30 * 60 * 1000;
@@ -3833,7 +3836,7 @@ li._cart_item dd.n_work_option + dd.cart_item_foot,li._cart_items dd.n_work_opti
 li.n_work_list_item dd.n_work_option{align-items:center;gap:5px}
 /* 0.58.7 사용자: 장바구니 D-5·쿠폰 줄이 할인율 칸에 붙어 답답함 → 위 6px·칸 사이 4px(7px은 사용자: 약간 넓음) */
 li._cart_item dd.n_work_option,li._cart_items dd.n_work_option{margin-top:6px!important;gap:5px 4px!important}
-li.n_work_list_item dd.n_work_option > span:not(:empty):not([class*="icon_REV"]){display:inline-flex!important;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);margin:0!important;padding:1px 6px 0!important;border-radius:5px!important;font-family:system-ui,sans-serif;font-weight:800!important;font-size:calc(var(--dlz,1)*10px)!important;line-height:1!important}
+li.n_work_list_item dd.n_work_option > span:not(:empty):not([class*="icon_REV"]):not(.dlhid):not(li.dlgrid [class*="icon_L_"]){display:inline-flex!important;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);margin:0!important;padding:1px 6px 0!important;border-radius:5px!important;font-family:system-ui,sans-serif;font-weight:800!important;font-size:calc(var(--dlz,1)*10px)!important;line-height:1!important}
 li._cart_item dd.cart_item_foot,li._cart_items dd.cart_item_foot{white-space:nowrap}
 .dlrow .dlty{flex:none;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);border-radius:5px;padding:1px 6px 0;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*10px);line-height:1;white-space:nowrap}
 .dlch{display:flex!important;flex-wrap:wrap;align-items:center;gap:5px;margin-top:6px!important;margin-bottom:0!important;padding:0 0 0 2px!important;list-style:none} /* 좌우 여백은 사이트 값 그대로(장바구니 dd는 margin-left 93px로 사진 옆에 맞춰져 있음) */
@@ -3915,10 +3918,10 @@ li.dlgrid.n_work_list_item .operations .btn{width:28px!important;height:28px!imp
 li.n_work_list_item dd.n_work_option > span:not(:empty):not([class*="icon_REV"]){padding:0 6px 1px!important}
 .n_work_price_wrap .overseas_discount_label .icon_campaign,.work_price_wrap .overseas_discount_label .icon_campaign,.dlsl{box-sizing:border-box;padding-top:0!important;padding-bottom:1px!important}
 /* 0.60.0 할인율 색(30 이하·50 이하·80 미만·80 이상) */
-.n_work_price_wrap .icon_campaign.o1,.work_price_wrap .icon_campaign.o1,.dlsl.o1{background:#fde4dc!important;color:#a3301b!important}
+.n_work_price_wrap .icon_campaign.o1,.work_price_wrap .icon_campaign.o1,.dlsl.o1{background:#f0eeef!important;color:#6b5f63!important}
 .n_work_price_wrap .icon_campaign.o2,.work_price_wrap .icon_campaign.o2,.dlsl.o2{background:#f6b3a2!important;color:#6e1508!important}
 .n_work_price_wrap .icon_campaign.o3,.work_price_wrap .icon_campaign.o3,.dlsl.o3{background:#e8676a!important;color:#fff!important}
-.n_work_price_wrap .icon_campaign.o4,.work_price_wrap .icon_campaign.o4,.dlsl.o4{background:#b8003c!important;color:#fff!important}
+.n_work_price_wrap .icon_campaign.o4,.work_price_wrap .icon_campaign.o4,.dlsl.o4{background:#1d1d1f!important;color:#ffd84d!important}
 /* 0.60.0 쿠폰 색(실제 깎이는 비율 10·20·30% 구간) · 묶음 */
 .dlcpn.q1{background:#e3effc!important;color:#1d5aa6!important}.dlcpn.q2{background:#a9cdf5!important;color:#0f3f7a!important}
 .dlcpn.q3{background:#2a63ad!important;color:#fff!important}.dlcpn.q4{background:#2b3f8c!important;color:#fff!important}
@@ -3933,8 +3936,8 @@ li.dlgrid dl.n_work_item>.dlrow{order:2;margin:10px 0 0!important;padding:0!impo
 .dlrow .dlsep{flex:none;padding-bottom:1px;font:400 11px/1 system-ui,sans-serif;color:#9a9aa0}
 li.dlgrid .dlrow .dltg.y{flex:none;padding-bottom:1px;font:700 11px/1 system-ui,sans-serif;color:#2f7a45}
 /* 0.60.0 사용자: 제목·작가가 잘리면 안 된다 → 다 보이게 두고, 옆 카드와 칸 높이는 list.equalize가 맞춘다(같은 줄에서 제일 긴 카드 기준) */
-li.dlgrid dl.n_work_item>dd.n_work_name{order:3;margin-top:8px!important;margin-bottom:0!important;line-height:1.4!important;height:auto!important;max-height:none!important;overflow:visible!important;display:block!important;-webkit-line-clamp:unset!important}
-li.dlgrid dl.n_work_item>dd.n_work_name *{-webkit-line-clamp:unset!important;max-height:none!important;overflow:visible!important;white-space:normal!important;text-overflow:clip!important}
+li.dlgrid dl.n_work_item>dd.n_work_name{order:3;margin-top:8px!important;margin-bottom:0!important;line-height:1.4!important;height:auto!important;max-height:none!important;overflow:hidden!important;display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:2!important} /* 0.62.2 사용자: 제목은 2줄까지 */
+li.dlgrid dl.n_work_item>dd.n_work_name *{display:inline!important;-webkit-line-clamp:unset!important;max-height:none!important;overflow:visible!important;white-space:normal!important;text-overflow:clip!important}
 li.dlgrid dl.n_work_item>dd.n_maker_name{order:4;margin-top:4px!important;margin-bottom:0!important;white-space:normal!important;overflow:visible!important;max-height:none!important;height:auto!important;display:block!important;-webkit-line-clamp:unset!important}
 li.dlgrid dl.n_work_item>dd.n_maker_name *{white-space:normal!important;text-overflow:clip!important;overflow:visible!important}
 li.dlgrid dl.n_work_item>dd.n_work_couple,li.dlgrid dl.n_work_item>dd.n_work_couple *{white-space:normal!important;text-overflow:clip!important;overflow:visible!important;max-height:none!important;-webkit-line-clamp:unset!important} /* 사이트 CP(커플) 줄도 다 보이게 */
