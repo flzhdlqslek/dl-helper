@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.62.4
+// @version      0.63.0
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -30,9 +30,12 @@
  *   8. voice    성우: 음성 작품 카드에 있는 이름을 쓰고, 없을 때만 작품 정보를 받아 카드에 붙임.
  *   9. jaFetch  일본어 화면을 받아 일본 할인 배너·이벤트 목록을 만듦.
  *  10. panel    설정 버튼과 바텀 시트 설정 창.
- *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
+ *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·♡(마이 리스트)·메모. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
  *
+ * 0.63.0 (사용자 A안) Play 라이브러리: 품번 띠 없앰 → 표지 왼쪽 위 ♡ = Play 공식 마이 리스트 '좋아요', ♡ 꾹 = 마이 리스트 시트, 오른쪽 아래 메모 아이콘 → 보기·편집(목록·들여·굵게, 마크다운).
+ *   - 요청: 열 때 GET 5분에 1번 이하(+1), ♡·체크 1번 = 1, '좋아요'·새 리스트 만들 때 +2. 메모는 이 기기(lib.memo, 구입 이력 메모 칸도 여러 줄로).
+ *   - 바꾼 것: playHide(deco·loadLists·like·mlSheet·memoView·memoEdit·mdRender·autoList, stamp 지움), playDb(myLists·putMyLists), lib.sheet·lib.import(메모 2000자), LINE.mo, PLAY_CSS.
  * 0.62.4 (사용자) 쿠폰·마감 줄이 비면 자리 안 남김(가격~카트 38→12px). 묶음·이벤트 카드 리뷰 수를 별점 옆으로(사이트가 따로 둬 두 줄이었음).
  *   - 바꾼 것: list.row(리뷰 수 칸 옮김), CSS(.dlben 빈 줄, dd.n_work_rating 한 줄).
  * 0.62.30.62.2가 깨뜨린 것: 묶음 카드에 사이트 '세트 할인 상품' 딱지가 우리 '묶음 N%'와 같이 다시 뜸 → 언어 숨김 규칙 쪽을 더 구체적으로 바꿈(실제 서클 화면 1→0, 언어 중복 0).
@@ -929,6 +932,7 @@
     bm: 'M7 4h10v16l-5-3.5L7 20z',
     hl: 'M12 20.5s-7.5-4.7-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.5-7.5 10.2-7.5 10.2z', // 0.54.0 하트 선
     cr: 'M10 6l6 6-6 6', // 0.59.0 오른쪽 꺾쇠(쪼개 사기 줄)
+    mo: 'M7 3.5h7l4 4v13H7zM14 3.5v4h4M9.5 12h6M9.5 15.5h4', // 0.63.0 메모(Play 표지 오른쪽 아래)
   };
   function icon(k) {
     const NS = 'http://www.w3.org/2000/svg';
@@ -4188,6 +4192,7 @@ html:has(#dltr) .reception_status_btn{color:#2f7a45!important;font-weight:700!im
 #dllsh .cs button{height:32px;padding:0 13px;border:0;border-radius:16px;background:#f0eeef;color:#555;font:500 13px/1 Pretendard,system-ui,sans-serif;cursor:pointer}
 #dllsh .cs button.on{background:#f6e5eb;color:#d76088}
 #dllsh .in{display:block;width:100%;height:38px;margin-bottom:8px;padding:0 12px;border:1px solid #ddd;border-radius:10px;font:400 14px/1 Pretendard,system-ui,sans-serif;box-sizing:border-box}
+#dllsh textarea.in{height:auto;min-height:76px;padding:8px 12px;line-height:1.5;resize:vertical}
 #dllsh .ft{display:flex;gap:8px}
 #dllsh .ft button{flex:1;height:40px;border:0;border-radius:10px;background:#f7f4f5;color:#666;font:500 14px/1 Pretendard,system-ui,sans-serif;cursor:pointer}
 #dllsh .ft button.ok{background:#d76088;color:#fff}
@@ -4628,9 +4633,42 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
 #dlph-tray button{flex:none;width:84px;padding:0;border:0;background:none;text-align:left;color:#555;font:inherit;font-size:11px;cursor:pointer}
 #dlph-tray img,#dlph-tray .ph{display:block;width:84px;height:63px;object-fit:cover;border-radius:6px;background:#ddd}
 #dlph-tray span{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.dlph-idh{position:relative}
-.dlph-id{position:absolute;left:0;right:0;bottom:0;z-index:3;height:20px;display:flex;align-items:center;padding:0 6px;background:rgba(20,20,24,.72);color:#fff;font:700 10px/1 system-ui,sans-serif;letter-spacing:.2px;white-space:nowrap;overflow:hidden;cursor:copy}
-.dlph-id.ok{background:#2e7d32}`;
+.dlpvb{position:relative}
+.dlpv{position:absolute;z-index:4;width:28px;height:28px;border-radius:14px;background:rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.dlpv.h{left:5px;top:5px}
+.dlpv.m{right:5px;bottom:5px}
+.dlpv svg{width:17px;height:17px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.dlpv.h.on svg{fill:#ff7aa2;stroke:#ff7aa2}
+.dlpv.busy{opacity:.45}
+html.dlph-ed .dlpv{display:none}
+#dlpvs{position:fixed;inset:0;z-index:2147483002;font:14px/1.45 system-ui,sans-serif;color:#222}
+#dlpvs .bk{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+#dlpvs .bx{position:absolute;left:0;right:0;bottom:0;max-height:82vh;overflow:auto;background:#fff;border-radius:18px 18px 0 0;padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px));box-sizing:border-box}
+#dlpvs .gb{width:36px;height:4px;border-radius:2px;background:#ddd;margin:0 auto 10px}
+#dlpvs .hd{display:flex;align-items:center;gap:8px;min-height:36px;margin-bottom:6px}
+#dlpvs .hd b{font-size:15px}
+#dlpvs .id{color:#999;font-size:12px;cursor:copy;padding:6px 0}
+#dlpvs .id.ok{color:#2e7d32}
+#dlpvs .sp{flex:1}
+#dlpvs .pill{height:34px;padding:0 16px;border:0;border-radius:17px;background:#f6e5eb;color:#d76088;font:700 13px/1 system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+#dlpvs .pill.go{background:#d76088;color:#fff}
+#dlpvs .li{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;min-height:48px;padding:0 2px;border:0;border-top:1px solid #f0f0f0;background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
+#dlpvs .cb{flex:none;width:20px;height:20px;border:2px solid #bbb;border-radius:5px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
+#dlpvs .li.on .cb{background:#d76088;border-color:#d76088}
+#dlpvs .cb svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+#dlpvs .li.add{color:#d76088;font-weight:700}
+#dlpvs .li[disabled]{opacity:.5}
+#dlpvs .nw{display:flex;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #f0f0f0}
+#dlpvs .nw input{flex:1;min-width:0;height:38px;border:1px solid #ddd;border-radius:10px;padding:0 10px;font:inherit;box-sizing:border-box}
+#dlpvs .err{color:#c0392b;font-size:12.5px;padding:4px 0}
+#dlpvs .md{line-height:1.6;word-break:break-word;padding-bottom:6px}
+#dlpvs .md h4{margin:2px 0 6px;font-size:15px}
+#dlpvs .md ul{margin:0 0 4px;padding-left:20px}
+#dlpvs .md p{margin:0 0 4px}
+#dlpvs textarea{display:block;width:100%;min-height:200px;box-sizing:border-box;border:1px solid #ddd;border-radius:10px;padding:10px;font:14px/1.6 ui-monospace,Consolas,monospace;resize:vertical}
+#dlpvs .tb{display:flex;gap:8px;margin:8px 0 0}
+#dlpvs .tb button{flex:1;height:40px;border:0;border-radius:10px;background:#f0eeef;color:#444;font:700 13px/1 system-ui,sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#dlpvt{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2147483003;max-width:86vw;padding:9px 14px;border-radius:10px;background:rgba(30,30,34,.92);color:#fff;font:13px/1.35 system-ui,sans-serif;pointer-events:none}`;
   const PLAY_ID = /^[A-Z]{2}\d{6,8}$/;
   // Play의 IndexedDB(Play_…)에서 비표시 목록과 작품 정보(제목·표지)를 읽고 쓴다
   const playDb = {
@@ -4681,6 +4719,29 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
       } catch (e) { /* 없으면 Play가 다음 동기화 때 서버에서 받는다 */ }
       db.close();
     },
+    // 0.63.0 마이 리스트(MyList 저장소, {id, title, data:[품번], insert_date…} — Play가 GET /api/mylists 응답을 그대로 넣는다, 2026-11-22 Play 코드)
+    async myLists() {
+      const db = await playDb.open().catch(() => null);
+      if (!db) return [];
+      let a = [];
+      try { a = (await playDb.req(db.transaction('MyList').objectStore('MyList').getAll())) || []; } catch (e) { /* 저장소가 없으면 서버에서 */ }
+      db.close();
+      return a;
+    },
+    async putMyLists(recs, all) { // all: 서버 목록 전체로 바꿈(Play의 동기화와 같게), 아니면 그 기록만
+      const db = await playDb.open().catch(() => null);
+      if (!db) return;
+      try {
+        await new Promise((res) => {
+          const tx = db.transaction('MyList', 'readwrite');
+          const st = tx.objectStore('MyList');
+          if (all) st.clear();
+          for (const r of recs) st.put(r);
+          tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+        });
+      } catch (e) { /* Play가 다음 동기화 때 서버에서 받는다 */ }
+      db.close();
+    },
   };
   const playApi = (method, works) => fetch('/api/ignore', {
     method, credentials: 'include',
@@ -4720,22 +4781,269 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
       : `${ids.map((id) => `li:has(a[href$="/work/${id}"])`).join(',')}{visibility:hidden!important}`
         + `${ids.map((id) => `[role=button]:has(img[src*="/${id}_img_"])`).join(',')}{display:none!important}`;
     const ids = () => (editing ? [...add] : Object.keys(legacy)).filter((id) => PLAY_ID.test(id));
-    // 썸네일마다 품번 띠(목록 li만)
-    const stamp = () => {
+    /* 0.63.0 (사용자 결정 guide/ui-0.63-Play마이리스트.png·ui-0.63-Play메모.png A안) 품번 띠를 없애고 목록 표지마다
+       왼쪽 위 ♡ = Play 공식 마이 리스트 '좋아요'에 넣기·빼기(없으면 처음 누를 때 만듦), ♡ 꾹 = 마이 리스트 시트(체크로 넣기·빼기, 새 리스트, 메모),
+       오른쪽 아래 메모 아이콘(메모 있을 때만) = 메모 보기 → 편집(목록·들여쓰기·굵게, 마크다운). 메모는 이 기기(lib.memo, 마이페이지 구입 이력과 같은 저장).
+       마이 리스트 API(2026-11-22 Play 코드): GET /api/mylists → {mylists:[{id,title,data:[품번]}]}, POST /api/mylists {title} → {mylist_id},
+       POST /api/mylists/{id}/works {workno}(이미 있으면 400 'Bad Request'), DELETE /api/mylists/{id}/works/{품번}. Play는 X-XSRF-TOKEN(쿠키 XSRF-TOKEN)을 붙인다.
+       요청: 목록은 Play 저장소(MyList)를 먼저 읽고 서버는 5분에 1번 이하(GET 1), ♡ 1번 = 1(처음 '좋아요' 만들 때 +2), 시트 체크 1번 = 1. 메모는 0. */
+    const LIKE = '좋아요', MEMO_KEY = 'lib.memo', ML_AT = 'play.mlAt';
+    let lists = [], ready = false;
+    const busyIds = new Set();
+    const likeList = () => lists.find((l) => l.title === LIKE);
+    const memoAll = () => { const v = store.get(MEMO_KEY, {}); return v && typeof v === 'object' ? v : {}; };
+    const xsrf = () => { const m = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/); try { return m ? decodeURIComponent(m[1]) : ''; } catch (e) { return ''; } };
+    const mlApi = (method, path, body) => {
+      const h = { Accept: 'application/json' }, x = xsrf();
+      if (body) h['Content-Type'] = 'application/json';
+      if (x) h['X-XSRF-TOKEN'] = x;
+      return fetch('/api/mylists' + path, { method, credentials: 'include', headers: h, body: body ? JSON.stringify(body) : undefined })
+        .then(async (r) => { const j = await r.json().catch(() => null); if (!r.ok) throw new Error((j && j.message) || 'HTTP ' + r.status); return j || {}; });
+    };
+    const norm = (a) => (Array.isArray(a) ? a : []).filter((l) => l && l.id != null).map((l) => ({ ...l, title: String(l.title || ''), data: Array.isArray(l.data) ? l.data.filter((x) => typeof x === 'string') : [] }));
+    const loadLists = async (force) => {
+      if (!force && !ready) { const local = norm(await playDb.myLists()); if (local.length) { lists = local; ready = true; paint(); } }
+      if (!force && ready && Date.now() - (+store.get(ML_AT, 0) || 0) < 5 * 60e3) return;
+      try {
+        const j = await mlApi('GET', '');
+        if (!Array.isArray(j.mylists)) return;
+        lists = norm(j.mylists); ready = true; store.set(ML_AT, Date.now());
+        playDb.putMyLists(lists, true);
+        paint();
+      } catch (e) { /* 로그인 안 됨 등: 저장소에 없으면 ♡를 안 그림 */ }
+    };
+    const msgOf = (e) => { const m = e && e.message; return m === 'exceedMylistWorkLimit' ? '이 리스트에는 더 넣을 수 없음(상한)' : m === 'exceedMylistLimit' ? '리스트를 더 만들 수 없음(상한)' : '실패 — 다시 눌러 주세요'; };
+    const say = (t) => { document.getElementById('dlpvt')?.remove(); const n = el('div', { id: 'dlpvt', role: 'status' }, t); document.body.append(n); setTimeout(() => n.remove(), 2200); };
+    const setMember = async (l, id, on) => {
+      if (on) await mlApi('POST', '/' + encodeURIComponent(l.id) + '/works', { workno: id }).catch((e) => { if (e.message !== 'Bad Request') throw e; }); // 이미 들어 있으면 그대로
+      else await mlApi('DELETE', '/' + encodeURIComponent(l.id) + '/works/' + encodeURIComponent(id));
+      l.data = on ? [...new Set([...l.data, id])] : l.data.filter((x) => x !== id);
+      playDb.putMyLists([l]);
+    };
+    // 같은 이름이 이미 있으면 그걸 쓰고, 만드는 중에 또 누르면 같은 만들기를 기다린다('좋아요'가 두 개 생기지 않게)
+    const making = new Map();
+    const createList = (title) => {
+      const has = lists.find((x) => x.title === title);
+      if (has) return Promise.resolve(has);
+      if (!making.has(title)) making.set(title, createNew(title).finally(() => making.delete(title)));
+      return making.get(title);
+    };
+    const createNew = async (title) => {
+      const j = await mlApi('POST', '', { title });
+      if (j.mylist_id == null) throw new Error('no id');
+      await loadLists(true); // Play도 만든 뒤 전체를 다시 받는다
+      let l = lists.find((x) => String(x.id) === String(j.mylist_id));
+      if (!l) { l = { id: j.mylist_id, title, data: [] }; lists.push(l); }
+      return l;
+    };
+    const like = async (id) => {
+      if (!ready || busyIds.has(id)) return;
+      busyIds.add(id); paint();
+      try {
+        let l = likeList();
+        const on = !(l && l.data.includes(id));
+        if (!l) l = await createList(LIKE);
+        await setMember(l, id, on);
+      } catch (e) { say(msgOf(e)); }
+      busyIds.delete(id); paint();
+    };
+    // 표지마다 ♡(왼쪽 위)·메모 아이콘(오른쪽 아래, 메모 있을 때만). 목록 li만(최근 본 작품 줄은 안 함)
+    const deco = () => {
+      const memo = memoAll(), ll = likeList();
       for (const a of document.querySelectorAll('li a[href*="/work/"]')) {
         const m = (a.getAttribute('href') || '').match(ID_HREF);
         const img = m && a.querySelector('img');
         const box = img && img.parentElement;
-        if (!box || (box.lastElementChild && box.lastElementChild.className === 'dlph-id' && box.lastElementChild.textContent === m[1])) continue;
-        for (const old of box.querySelectorAll(':scope > .dlph-id')) old.remove();
-        box.classList.add('dlph-idh');
-        box.append(el('span', { class: 'dlph-id' }, m[1]));
+        if (!box) continue;
+        const id = m[1];
+        box.classList.add('dlpvb');
+        for (const o of box.querySelectorAll(':scope > .dlph-id')) o.remove();
+        const put = (k, want, label, ic) => {
+          let b = box.querySelector(':scope > .dlpv.' + k);
+          if (!want) { if (b) b.remove(); return null; }
+          if (b && b.dataset.id !== id) { b.remove(); b = null; }
+          if (!b) { b = el('span', { class: 'dlpv ' + k, role: 'button', tabindex: '0', 'aria-label': label, 'data-id': id }, icon(ic)); box.append(b); }
+          return b;
+        };
+        const h = put('h', ready, '좋아요 (꾹: 마이 리스트)', 'hl');
+        if (h) {
+          const on = !!(ll && ll.data.includes(id)), bz = busyIds.has(id);
+          if (h.classList.contains('on') !== on) { h.classList.toggle('on', on); h.setAttribute('aria-pressed', String(on)); }
+          if (h.classList.contains('busy') !== bz) h.classList.toggle('busy', bz);
+        }
+        put('m', !!memo[id], '메모 보기', 'mo');
       }
     };
+    // 아래 시트(Play 화면에는 DLsite 쪽 시트·CSS가 없어 따로). onClose: 바깥을 눌러 닫을 때(메모 편집은 저장)
+    const sheetOpen = (kids, onClose) => {
+      document.getElementById('dlpvs')?.remove();
+      const w = el('div', { id: 'dlpvs', role: 'dialog' });
+      const close = () => { if (onClose) onClose(); w.remove(); };
+      w.append(el('div', { class: 'bk', onclick: close }), el('div', { class: 'bx' }, el('div', { class: 'gb' }), ...kids));
+      document.body.append(w);
+      return w;
+    };
+    const idTag = (id) => { const s = el('span', { class: 'id', title: '누르면 품번 복사' }, id); s.addEventListener('click', () => copyText(s, id)); return s; };
+    // ♡ 꾹: 마이 리스트마다 체크(누르면 바로 넣기·빼기) · 새 리스트 · 메모
+    const mlSheet = (id) => {
+      const err = el('div', { class: 'err' }); err.hidden = true;
+      const body = el('div');
+      const fail = (e) => { err.textContent = msgOf(e); err.hidden = false; };
+      const draw = () => {
+        const rows = [...lists].sort((a, b) => (b.title === LIKE) - (a.title === LIKE) || a.title.localeCompare(b.title, 'ko'));
+        if (!likeList()) rows.unshift({ id: null, title: LIKE, data: [] });
+        const items = rows.map((l) => {
+          const on = l.data.includes(id);
+          const b = el('button', { class: 'li' + (on ? ' on' : ''), 'aria-pressed': String(on) }, el('span', { class: 'cb' }, on ? icon('ok') : null), el('span', {}, l.title));
+          b.addEventListener('click', async () => {
+            if (b.disabled) return;
+            b.disabled = true; err.hidden = true;
+            try { await setMember(l.id == null ? await createList(LIKE) : l, id, !on); } catch (e) { fail(e); }
+            draw(); paint();
+          });
+          return b;
+        });
+        const add = el('button', { class: 'li add' }, '새 리스트 만들기');
+        add.addEventListener('click', () => {
+          const inp = el('input', { maxlength: '50', placeholder: '리스트 이름', 'aria-label': '새 리스트 이름' });
+          const go = el('button', { class: 'pill go' }, '만들기');
+          const make = async () => {
+            const t = inp.value.trim();
+            if (!t || go.disabled) return;
+            go.disabled = true; err.hidden = true;
+            try { await setMember(await createList(t), id, true); } catch (e) { fail(e); }
+            draw(); paint();
+          };
+          go.addEventListener('click', make);
+          inp.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); make(); } });
+          add.replaceWith(el('div', { class: 'nw' }, inp, go));
+          inp.focus();
+        });
+        const mm = el('button', { class: 'li add' }, memoAll()[id] ? '메모 편집' : '메모 쓰기');
+        mm.addEventListener('click', () => memoEdit(id));
+        body.replaceChildren(...items, add, mm);
+      };
+      draw();
+      sheetOpen([el('div', { class: 'hd' }, el('b', {}, '마이 리스트'), el('span', { class: 'sp' }), idTag(id)), err, body]);
+      if (!ready) loadLists(true).then(() => { if (document.getElementById('dlpvs')) draw(); });
+    };
+    // 메모 마크다운: '# 제목', '- 목록'(앞 공백 2칸 = 한 단계 들여), '**굵게**'. 글자는 DOM으로만 넣는다(HTML로 해석 안 함)
+    const mdInline = (s) => {
+      const out = [], re = /\*\*(.+?)\*\*/g;
+      let i = 0, m;
+      while ((m = re.exec(s))) { if (m.index > i) out.push(s.slice(i, m.index)); out.push(el('b', {}, m[1])); i = re.lastIndex; }
+      if (i < s.length) out.push(s.slice(i));
+      return out;
+    };
+    const mdRender = (text) => {
+      const root = el('div', { class: 'md' }), stack = [];
+      for (const line of String(text).split(/\r?\n/)) {
+        const li = line.match(/^([ \t]*)[-*]\s+(.*)$/);
+        if (li) {
+          const lvl = Math.floor(li[1].replace(/\t/g, '  ').length / 2);
+          while (stack.length && stack[stack.length - 1].lvl > lvl) stack.pop();
+          let top = stack[stack.length - 1];
+          if (!top || top.lvl < lvl) { const ul = el('ul'); (top && top.li ? top.li : root).append(ul); top = { ul, lvl, li: null }; stack.push(top); }
+          top.li = el('li', {}, mdInline(li[2]));
+          top.ul.append(top.li);
+          continue;
+        }
+        stack.length = 0;
+        const h = line.match(/^#{1,6}\s+(.*)$/);
+        if (h) root.append(el('h4', {}, mdInline(h[1])));
+        else if (line.trim()) root.append(el('p', {}, mdInline(line)));
+      }
+      return root;
+    };
+    const memoView = (id) => {
+      const ed = el('button', { class: 'pill' }, '편집');
+      ed.addEventListener('click', () => memoEdit(id));
+      sheetOpen([el('div', { class: 'hd' }, el('b', {}, '메모'), idTag(id), el('span', { class: 'sp' }), ed), mdRender(memoAll()[id] || '')]);
+    };
+    // 편집: 줄 단위 도구(목록·들여·내어)와 굵게. 엔터 = 목록 줄이면 다음 줄도 같은 단계 '- ', 빈 '- '에서 엔터 = 목록 끝
+    const lineSpan = (ta) => {
+      const v = ta.value, s = ta.selectionStart, e = Math.max(s, ta.selectionEnd - (ta.selectionEnd > s && v[ta.selectionEnd - 1] === '\n' ? 1 : 0));
+      const a = s === 0 ? 0 : v.lastIndexOf('\n', s - 1) + 1; // lastIndexOf(…, -1)은 0번 글자를 본다
+      let b = v.indexOf('\n', e);
+      if (b < 0) b = v.length;
+      return [a, b];
+    };
+    const mapLines = (ta, f) => {
+      const [a, b] = lineSpan(ta), one = ta.selectionStart === ta.selectionEnd;
+      const out = ta.value.slice(a, b).split('\n').map(f).join('\n');
+      ta.setRangeText(out, a, b, one ? 'end' : 'select');
+    };
+    const autoList = (ta) => {
+      const v = ta.value, c = ta.selectionStart;
+      if (c !== ta.selectionEnd || v[c - 1] !== '\n') return;
+      const ps = v.lastIndexOf('\n', c - 2) + 1, prev = v.slice(ps, c - 1);
+      const m = prev.match(/^([ \t]*)([-*])(?:\s+(.*))?$/);
+      if (!m) return;
+      if (!(m[3] || '').trim()) { ta.setRangeText('', ps, c, 'end'); return; } // 빈 항목에서 엔터: 그 줄을 비워 목록을 끝냄
+      ta.setRangeText(m[1] + m[2] + ' ', c, c, 'end');
+    };
+    const memoEdit = (id) => {
+      const ta = el('textarea', { 'aria-label': '메모', maxlength: '2000', spellcheck: 'false', placeholder: '- 목록\n  - 들여쓴 목록\n**굵게**' });
+      ta.value = memoAll()[id] || '';
+      let saved = false;
+      const save = () => {
+        if (saved) return;
+        saved = true;
+        const m = { ...memoAll() }, v = ta.value.replace(/\s+$/, '');
+        if (v.trim()) m[id] = v; else delete m[id];
+        store.set(MEMO_KEY, m);
+        paint();
+      };
+      const tool = (label, fn) => {
+        const b = el('button', { 'aria-label': label }, label);
+        b.addEventListener('pointerdown', (e) => e.preventDefault()); // 글자 칸의 선택·키보드를 유지
+        b.addEventListener('mousedown', (e) => e.preventDefault());
+        b.addEventListener('click', () => { fn(); ta.focus(); });
+        return b;
+      };
+      const ok = el('button', { class: 'pill go' }, '저장');
+      const w = sheetOpen([el('div', { class: 'hd' }, el('b', {}, '메모 편집'), idTag(id), el('span', { class: 'sp' }), ok), ta,
+        el('div', { class: 'tb' },
+          tool('목록', () => mapLines(ta, (l) => (/^[ \t]*[-*]\s/.test(l) ? l.replace(/^([ \t]*)[-*]\s/, '$1') : l.replace(/^([ \t]*)/, '$1- ')))),
+          tool('들여', () => mapLines(ta, (l) => '  ' + l)),
+          tool('내어', () => mapLines(ta, (l) => l.replace(/^ {1,2}|^\t/, ''))),
+          tool('굵게', () => {
+            const s = ta.selectionStart, e = ta.selectionEnd, t = ta.value.slice(s, e);
+            if (s === e) { ta.setRangeText('****', s, e, 'end'); ta.setSelectionRange(s + 2, s + 2); }
+            else if (/^\*\*[\s\S]*\*\*$/.test(t)) ta.setRangeText(t.slice(2, -2), s, e, 'select');
+            else ta.setRangeText('**' + t + '**', s, e, 'select');
+          }))], save);
+      ok.addEventListener('click', () => { save(); w.remove(); });
+      ta.addEventListener('input', (e) => { if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph' || (!e.inputType && ta.value[ta.selectionStart - 1] === '\n')) autoList(ta); });
+      setTimeout(() => ta.focus(), 60);
+    };
+    // ♡ 꾹(0.5초) = 시트. 꾹 뒤에 따라오는 클릭은 버린다(다음 누름에서 풀림)
+    let pvT = 0, pvAt = null, skipPv = false;
+    window.addEventListener('pointerdown', (e) => {
+      clearTimeout(pvT); pvAt = null; skipPv = false;
+      const pv = !editing && e.target.closest && e.target.closest('.dlpv.h');
+      if (!pv) return;
+      pvAt = { x: e.clientX, y: e.clientY };
+      pvT = setTimeout(() => {
+        pvAt = null; skipPv = true;
+        if (navigator.vibrate) try { navigator.vibrate(30); } catch (err) { /* 무시 */ }
+        mlSheet(pv.dataset.id);
+      }, 500);
+    }, true);
+    window.addEventListener('pointermove', (e) => { if (pvAt && Math.hypot(e.clientX - pvAt.x, e.clientY - pvAt.y) > 12) { clearTimeout(pvT); pvAt = null; } }, true);
+    for (const t of ['pointerup', 'pointercancel']) window.addEventListener(t, () => { clearTimeout(pvT); pvAt = null; }, true);
+    window.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.dlpv')) e.preventDefault(); }, true);
+    window.addEventListener('keydown', (e) => { // 키보드: ♡·메모 아이콘에서 Enter·Space = 누름(링크가 열리지 않게 먼저 받음)
+      const pv = (e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('.dlpv');
+      if (!pv) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (pv.classList.contains('h')) like(pv.dataset.id); else memoView(pv.dataset.id);
+    }, true);
     const paint = () => {
       const css = hideRule(ids());
       if (hideCss.textContent !== css) hideCss.textContent = css;
-      stamp();
+      document.documentElement.classList.toggle('dlph-ed', editing);
+      deco();
       fab.hidden = !editing && !document.querySelector('a[href*="/work/"], [role=button] img[src*="_img_"]');
       fab.classList.toggle('on', editing);
       fab.disabled = busy;
@@ -4819,11 +5127,16 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
       store.set(PLAY_KEY, null);
       location.reload();
     });
-    // 품번 띠를 누르면 작품을 열지 않고 품번만 복사한다(편집 중에도). 복사되면 띠가 잠깐 초록색(copyText)
-    // 편집 중에는 작품을 열지 않고 숨길 작품으로 고른다(사이트보다 먼저 받으려고 window 캡처 단계). 칸에 쓸 표지·제목도 같이 읽는다
+    // 0.63.0 ♡·메모 아이콘을 누르면 작품을 열지 않고 그 일만(사이트보다 먼저 받으려고 window 캡처 단계)
+    // 편집 중에는 작품을 열지 않고 숨길 작품으로 고른다. 칸에 쓸 표지·제목도 같이 읽는다
     window.addEventListener('click', (e) => {
-      const band = e.target.closest && e.target.closest('.dlph-id');
-      if (band) { e.preventDefault(); e.stopImmediatePropagation(); copyText(band, band.textContent); return; }
+      const pv = e.target.closest && e.target.closest('.dlpv');
+      if (pv) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        if (skipPv) { skipPv = false; return; }
+        if (pv.classList.contains('h')) like(pv.dataset.id); else memoView(pv.dataset.id);
+        return;
+      }
       if (!editing || !e.target.closest || e.target.closest('#dlph, #dlph-tray')) return;
       for (const [c, id] of cards()) {
         if (!c.contains(e.target)) continue;
@@ -4846,11 +5159,12 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
       (document.head || document.documentElement).append(el('style', {}, PLAY_CSS), hideCss);
       document.body.append(tray, fab);
       paint();
+      loadLists(false);
       place(store.get(POS_KEY, null));
       let t = null;
-      new MutationObserver((recs) => { // 숨기기는 CSS와 Play가 하고, 여기서는 품번 띠와 편집 버튼만
-        const ours = (n) => n.nodeType !== 1 || n.classList.contains('dlph-id');
-        if (recs.every((r) => fab.contains(r.target) || tray.contains(r.target) || ([...r.addedNodes].every(ours) && [...r.removedNodes].every(ours)))) return;
+      new MutationObserver((recs) => { // 숨기기는 CSS와 Play가 하고, 여기서는 ♡·메모 아이콘과 편집 버튼만
+        const ours = (n) => n.nodeType !== 1 || n.classList.contains('dlpv') || n.id === 'dlpvs' || n.id === 'dlpvt';
+        if (recs.every((r) => fab.contains(r.target) || tray.contains(r.target) || (r.target.closest && r.target.closest('#dlpvs, .dlpv')) || ([...r.addedNodes].every(ours) && [...r.removedNodes].every(ours)))) return;
         clearTimeout(t);
         t = setTimeout(paint, 100);
       }).observe(document.body, { childList: true, subtree: true });
@@ -5227,7 +5541,8 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
         mine.add(v); nt.value = ''; draw();
       };
       nt.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } });
-      const mm = el('input', { class: 'in', placeholder: '한 줄 메모', maxlength: '200', 'aria-label': '메모', value: libGet(LIBK.m)[id] || '' });
+      const mm = el('textarea', { class: 'in', placeholder: '메모', maxlength: '2000', 'aria-label': '메모', rows: '3' }); // 0.63.0 Play 메모(여러 줄·마크다운)와 같은 저장이라 줄바꿈을 지키게 여러 줄 칸
+      mm.value = libGet(LIBK.m)[id] || '';
       const close = () => { w.remove(); };
       const w = el('div', { id: 'dllsh', role: 'dialog', 'aria-label': id + ' 내 표시' },
         el('div', { class: 'bk', onclick: close }),
@@ -5236,7 +5551,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
             addTag();
             const t = { ...libGet(LIBK.t) }, m = { ...libGet(LIBK.m) }, v = mm.value.trim();
             if (mine.size) t[id] = [...mine]; else delete t[id];
-            if (v) m[id] = v; else delete m[id];
+            if (v) m[id] = mm.value.replace(/\s+$/, ''); else delete m[id];
             store.set(LIBK.t, t); store.set(LIBK.m, m); close(); lib.run();
           } }, '저장'))));
       draw();
@@ -5269,7 +5584,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
       const tag = (s) => typeof s === 'string' && s.trim() && s.length <= 20 ? s.trim() : '';
       for (const id of Object.keys(j.heart || {})) if (ID.test(id) && j.heart[id]) h[id] = 1;
       for (const [id, a] of Object.entries(j.tags || {})) if (ID.test(id) && Array.isArray(a)) { const ok = a.map(tag).filter(Boolean); if (ok.length) { t[id] = [...new Set([...(t[id] || []), ...ok])]; ok.forEach((n) => names.add(n)); } }
-      for (const [id, s] of Object.entries(j.memo || {})) if (ID.test(id) && typeof s === 'string' && s.trim() && s.length <= 200) m[id] = s.trim();
+      for (const [id, s] of Object.entries(j.memo || {})) if (ID.test(id) && typeof s === 'string' && s.trim() && s.length <= 2000) m[id] = s.replace(/\s+$/, '');
       for (const n of Array.isArray(j.names) ? j.names : []) if (tag(n)) names.add(tag(n));
       store.set(LIBK.h, h); store.set(LIBK.t, t); store.set(LIBK.m, m); store.set(LIBK.n, [...names]);
       lib.run();
