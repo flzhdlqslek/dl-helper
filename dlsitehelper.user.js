@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.62.2
+// @version      0.62.3
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -33,6 +33,7 @@
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
  *
+ * 0.62.3 0.62.2가 깨뜨린 것: 묶음 카드에 사이트 '세트 할인 상품' 딱지가 우리 '묶음 N%'와 같이 다시 뜸 → 언어 숨김 규칙 쪽을 더 구체적으로 바꿈(실제 서클 화면 1→0, 언어 중복 0).
  * 0.62.2 (사용자) 격자·장바구니에서 연령 딱지가 있는 카드에 사이트 언어 딱지가 다시 떠 언어가 2개 보이던 것 고침. 격자 제목은 2줄까지.
  *   - 할인율 색: 30% 미만 회색 · 30~49 · 50~79 · 80% 이상 검정 바탕 노란 글씨(구간은 이상·미만, guide/ui-0.62-색결정표.png C안).
  *   - 바꾼 것: offTone, CSS(dd.n_work_option 딱지 규칙에 .dlhid·격자 언어 제외, li.dlgrid 제목 줄 수, .dlsl.o1·o4 색).
@@ -3836,7 +3837,7 @@ li._cart_item dd.n_work_option + dd.cart_item_foot,li._cart_items dd.n_work_opti
 li.n_work_list_item dd.n_work_option{align-items:center;gap:5px}
 /* 0.58.7 사용자: 장바구니 D-5·쿠폰 줄이 할인율 칸에 붙어 답답함 → 위 6px·칸 사이 4px(7px은 사용자: 약간 넓음) */
 li._cart_item dd.n_work_option,li._cart_items dd.n_work_option{margin-top:6px!important;gap:5px 4px!important}
-li.n_work_list_item dd.n_work_option > span:not(:empty):not([class*="icon_REV"]):not(.dlhid):not(li.dlgrid [class*="icon_L_"]){display:inline-flex!important;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);margin:0!important;padding:1px 6px 0!important;border-radius:5px!important;font-family:system-ui,sans-serif;font-weight:800!important;font-size:calc(var(--dlz,1)*10px)!important;line-height:1!important}
+li.n_work_list_item dd.n_work_option > span:not(:empty):not([class*="icon_REV"]):not(.dlhid){display:inline-flex!important;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);margin:0!important;padding:1px 6px 0!important;border-radius:5px!important;font-family:system-ui,sans-serif;font-weight:800!important;font-size:calc(var(--dlz,1)*10px)!important;line-height:1!important}
 li._cart_item dd.cart_item_foot,li._cart_items dd.cart_item_foot{white-space:nowrap}
 .dlrow .dlty{flex:none;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:calc(var(--dlz,1)*20px);border-radius:5px;padding:1px 6px 0;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*10px);line-height:1;white-space:nowrap}
 .dlch{display:flex!important;flex-wrap:wrap;align-items:center;gap:5px;margin-top:6px!important;margin-bottom:0!important;padding:0 0 0 2px!important;list-style:none} /* 좌우 여백은 사이트 값 그대로(장바구니 dd는 margin-left 93px로 사진 옆에 맞춰져 있음) */
@@ -3953,7 +3954,7 @@ li.dlgrid dd.n_work_price_wrap .icon_campaign{margin-left:0!important;padding:0 
 li.dlgrid dl.n_work_item>.dlben{order:7;display:flex!important;flex-wrap:wrap;align-items:center;gap:4px;margin:6px 0 0!important;padding:0!important;min-height:calc(var(--dlz,1)*20px);list-style:none}
 .dlben .dlcpn,.dlben .dldue{flex:none;display:inline-flex;align-items:center;justify-content:center;height:calc(var(--dlz,1)*20px);padding:0 7px 1px;border-radius:5px;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*10px);line-height:1;white-space:nowrap}
 li.dlgrid dl.n_work_item>dd:not(.n_work_name):not(.n_maker_name):not(.n_work_value):not(.n_work_rating):not(.n_work_price_wrap):not(.dlrow):not(.dlben):not(.dlv0):not(:has([class*="icon_REV"])){order:8}
-li.dlgrid dd.n_work_option [class*="icon_L_"]{display:none!important}
+li.dlgrid.n_work_list_item dd.n_work_option > span[class*="icon_L_"]:not(.dlx):not(.dly){display:none!important} /* 0.62.3 결정 이유: 위의 딱지 모양 규칙(span:not(:empty)…, !important)보다 구체적이어야 숨겨진다(연령 딱지 있는 카드에서 언어 2개) — 그 규칙을 올리면 '세트 할인 상품' 숨김이 져서 이쪽을 올림 */
 li.dlgrid dd.n_work_option:not(:has(>span:not([class*="icon_L_"]):not(:empty))){display:none!important}
 /* 사이트 '세트 할인 상품' 딱지(.type_matome)는 우리 '묶음 N%'와 같은 뜻 — 우리 것이 있으면 숨긴다(서클 화면에서 쿠폰 줄 아래로 따로 떨어져 보였다) */
 li.dlgrid:has(.dlben .bk) dd.n_work_option .sale_state_item:has(.type_matome){display:none!important}
