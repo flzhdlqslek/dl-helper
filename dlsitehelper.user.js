@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.59.0
+// @version      0.62.1
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -32,6 +32,22 @@
  *  10. panel    설정 버튼과 바텀 시트 설정 창.
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
+ *
+ * 0.62.1 (사용자) 할인 이벤트: 사이트가 열린 직후 인기 태그 밖의 태그·(일본어 화면에서) 언어 조건을 지우고 다시 받던 것을 막음(10초 동안 사이트 요청·주소에 다시 붙임, 요청 수 그대로).
+ *   - 바꾼 함수: reviewNewest(cpWant·cpAdd, fix, history.replaceState·pushState 감쌈).
+ * 0.62.0 (사용자) 이벤트·묶음 할인 화면: 연령·가격·할인·쿠폰을 켜면 다른 쪽(앞 10쪽까지)의 맞는 작품을 받아 맨 앞에 모음(쪽당 요청 1, 최대 +9).
+ *   - 할인 이벤트의 할인율은 사이트 주소 조건(discount_rate[]=c8·c9·c10)으로 — 모든 쪽에서 맞음(요청 그대로).
+ *   - 바꾼 함수: evAll(새), list.apply(pass로 묶음), cpRead·cpUrl·cpRateOk(새).
+ * 0.61.0 (사용자) 번역 허가 목록: 칩 [번역 신청중·신청 X·전체](저장 키 tr.show, 기본 신청중), 사이트 '접수 중' 버튼 글자를 '번역 신청중 · N'(초록)·'신청 X'(회색)으로. 카드는 사이트 그대로.
+ *   - 위에는 보기 3칩만, 언어·정렬·형식은 아래 [필터] → 아래에서 올라오는 '번역 필터' 창(사용자 C안).
+ *   - 바꾼 함수: reviewNewest(trFix·trNone·trSeen), trBar(trOpen), trBtns(새), list.syncFab, sheet.show·fit(bottom), 패널 fb, tidy, CSS. 요청 수 그대로(응답에서 읽음).
+ * 0.60.1 (사용자) 필터 창 할인 칸 순서 할인중·80·50·30%↑. 바꾼 곳: 필터 창 할인 줄(lr '할인'). 요청 수 그대로.
+ * 0.60.0 (사용자 결정) 격자 카드 B안: 사진→형식·언어(글자)·번역→제목(안 자름)→작가→별점→가격→쿠폰·묶음→♥·장바구니, 옆 카드와 칸 맞춤. 할인율·쿠폰 색 구간, 묶음 N%(꾹=묶음 화면), 장바구니 A안, TL+BL 함께(is_tl+is_bl), 설정 '흐림 세기'(약·중·강).
+ *   버그: 번역 허가 0장·PC 첫 화면 DLW 0·형식 목록/서클 정렬 회색·쿠폰·할인 거르기가 다른 화면에 남음·카트 버튼 빈 카드·결과 1~2장이면 바 없음·정렬 집어 올림 남음·서클 처음부터 필터1.
+ *   - 바꾼 함수: reviewNewest(trUrl), trBar, homeDlw, goOrder, filterSpec·floorRead·filterCount·resetAll·typeTable(TL+BL), list.items·apply·row·chips·cpn·band·equalize(새)·cartFoot, coupon.badges·refreshHeld, bulkInfo(새), sortRow, setOpen, applyThumbBlur·buildPanel(흐림 세기 blurLv), CSS. 요청: 묶음 키마다 12시간에 +1.
+ *
+ * 0.59.1 (사용자 폰 지적) 첫 화면 랭킹 카드 DLW가 세로 타원(22x102): 사이트가 링크에 display:block·bottom:-6px을 줘서 → 크기·위치 !important.
+ *   - 바꾼 함수: CSS(.dlx>.dlw). 화면별 실제 측정 시험 test/screen-audit.test.js(새).
  *
  * 0.59.0 (사용자 요청) 장바구니 쪼개 사기: 사이트 쿠폰 칸 안 한 줄 '2번 나눠 사면 ○円(−○)' → 창에 차례별 작품 수·쿠폰·금액·[이것만 카트에].
  *   - 쿠폰(1주문 1장·대상 전부 작품마다 버림·1회용·상한·N작품 이상)·묶음(사이트 Bulkbuy와 같게)을 넣어 최대 4번까지 계산. 요청 없음(쿠폰함 응답에서 쿠폰별 조건도 저장).
@@ -387,6 +403,7 @@
     hideAI: false, // AI 생성 작품 숨기기
     blurThumb: false, // 목록 썸네일 흐리게(설정 스위치). 끄면 바로 원래대로
     dimOwned: true, // 0.56.0 산 작품(Play 구매 목록) 카드 흐리게
+    blurLv: 'm', // 0.60.0 썸네일 흐림 세기(약 s 4px / 중 m 12px = 예전 / 강 l 24px, 사용자 요청)
     chipSize: 'm', // 0.50.1 할인율·마감·쿠폰·묶음 칸 크기(작게 s / 보통 m / 크게 l, 사용자가 대강 조절)
     trOnly: true, // 0.53.0 번역 허가 목록: 고른 언어로 '신청 1↑ · 판매 0'인 작품만(바의 토글, ⚙ 스위치 아님)
     reviewFirst: true, // 0.51.1 작품 페이지: 리뷰를 상품 정보 바로 아래로 올리고 신착순으로 받는다
@@ -414,7 +431,7 @@
   const blockSet = () => blockSet.cache || (blockSet.cache = new Set(String(store.get('block.list', '')).split('\n').map(normName).filter(Boolean)));
   const PRICE_RE = /\d[\d,.]*\s*(?:円|JPY|원|KRW|USD|CNY|TWD|HKD|EUR|元)|[$₩¥€]\s*\d/i; // 가격이 그려졌는지 판단(늦게 로드되는 카드 대응)
   const PID_RE = /product_id\/([A-Za-z]{2}\d{6,8})/;
-  const OURS = '.dlsplit,#dllib,#dllsh,.dllh,#dlnmm,#dltr,.dlwt,.dltg,#dlwp,#dlh,#dlsale,#dlbar,#dlsheet,.dlva,.dlpn,.dlx,.dlw,.dlcp,.dlrow,.dlact,.dlsl,.dlpk,.dlch,.dlcpn,.dldue,.dlty'; // 이 스크립트가 만든 요소
+  const OURS = '.dlben,.dlv0,.dlsplit,#dllib,#dllsh,.dllh,#dlnmm,#dltr,.dlwt,.dltg,#dlwp,#dlh,#dlsale,#dlbar,#dlsheet,.dlva,.dlpn,.dlx,.dlw,.dlcp,.dlrow,.dlact,.dlsl,.dlpk,.dlch,.dlcpn,.dldue,.dlty'; // 이 스크립트가 만든 요소
   const CACHE_MS = 2 * 3600 * 1000; // 일본어 첫 화면(할인 배너·이벤트 목록) 캐시. 30분 → 2시간(요청 1/4, 0.38.1)
   const DLW_URL = (id) => `https://dlwatcher.com/product/${encodeURIComponent(id)}`;
   const FAB_LONG_MS = 450; // 버튼을 이만큼 꾹 누르면 설정 시트
@@ -443,26 +460,64 @@
   };
   const opt = (k) => store.get(k);
 
+  const trSeen = new Map(); // 0.61.0 번역 목록 응답에서 본 작품별 신청 수(품번 → { n, l }), 버튼 글자(trBtns)에 쓴다. 요청 없음
   // 0.51.1 작품 페이지 리뷰 신착순: 사이트가 보내는 리뷰 요청의 order=top(TOP 리뷰 순)을 order=regist_d(신착순, 2026-11-18 응답 확인)로 바꾼다. 요청 수는 그대로.
   // 사이트 Vue 화면이 만든 요청이라 fetch·XHR을 시작 때(document-start) 감싼다.
   (function reviewNewest() {
     const w = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
-    const fix = (u) => (typeof u === 'string' && /\/fetchReview\?/.test(u) && opt('reviewFirst') ? u.replace(/([?&])order=top\b/, '$1order=regist_d') : u);
+    // 0.60.0 번역 허가 목록: 주소에 언어가 붙은 채 열면 사이트가 translation_not_sale=1(미판매만) 없이 요청해 판매중만 와서 아래 거르기가 0장을 만들었다 → 늘 붙인다(요청 수 그대로)
+    const trUrl = (u) => (/\/translatableProducts\.json/.test(u) && !/[?&]translation_not_sale=/.test(u) ? u + (u.includes('?') ? '&' : '?') + 'translation_not_sale=1' : u);
+    // 0.62.1 할인 이벤트 화면: 사이트가 열린 직후 자기 화면 목록에 없는 태그(인기 태그 23개 밖)와, 일본어 화면에서는 언어(group2)를 주소·요청에서 지우고
+    // 조건 없이 다시 받는다(스크립트 없이도, 2026-11-22 실제: 태그 496 → 그 태그 작품 50/50 → 0/50). 처음 주소의 genre·group2가 통째로 빠졌으면 10초 동안 다시 붙인다(요청 수 그대로)
+    const cpWant = (() => {
+      try {
+        if (!/\/campaign\/discount\/?$/.test(location.pathname)) return null;
+        const out = [...new URLSearchParams(location.search)].filter(([k]) => /^(genre|group2)(\[\d*\])?$/.test(k)).map(([k, v]) => [k.replace(/\[\d*\]$/, ''), v]);
+        return out.length ? { t: Date.now(), out } : null;
+      } catch (e) { return null; }
+    })();
+    const cpLive = () => !!cpWant && Date.now() - cpWant.t < 10000;
+    const cpAdd = (u, ajax) => {
+      const U = new URL(u, location.href);
+      for (const k of ['genre', 'group2']) {
+        const vs = cpWant.out.filter((x) => x[0] === k).map((x) => x[1]);
+        if (!vs.length || [...U.searchParams.keys()].some((x) => x === k || x.startsWith(k + '['))) continue; // 일부라도 남아 있으면 사이트(사용자)가 고친 것이라 그대로
+        vs.forEach((v, i) => U.searchParams.append(ajax ? k + '[]' : `${k}[${i}]`, v)); // 사이트 ajax는 genre[]=, 화면 주소는 genre[0]=
+      }
+      return U.href;
+    };
+    const fix = (u) => (typeof u !== 'string' ? u : /\/fetchReview\?/.test(u) && opt('reviewFirst') ? u.replace(/([?&])order=top\b/, '$1order=regist_d') : cpLive() && /\/campaign\/discount\/ajax\?/.test(u) ? cpAdd(u, true) : trUrl(u));
     const put = (name, fn) => { try { w[name] = typeof exportFunction === 'function' ? exportFunction(fn, w) : fn; } catch (e) { /* 못 감싸면 사이트 기본 순서 */ } };
+    if (cpWant && w.history) for (const n of ['replaceState', 'pushState']) {
+      const o = w.history[n];
+      if (typeof o !== 'function') continue;
+      const fn = function (s, t, u) {
+        if (cpLive() && u != null) try { const U = new URL(String(u), location.href); if (U.pathname === location.pathname) u = cpAdd(U.href, false); } catch (e) { /* 그대로 */ }
+        return o.call(this, s, t, u);
+      };
+      try { w.history[n] = typeof exportFunction === 'function' ? exportFunction(fn, w) : fn; } catch (e) { /* 못 감싸면 사이트 그대로 */ }
+    }
     // 0.53.0 번역 허가 목록(/works/translatable)이 받는 translatableProducts.json에서 '고른 언어로 신청 1 이상 · 판매 0 · 거절 아님'만 남긴다(요청 수 그대로)
     const trLang = (u) => { const m = /translation_can_apply(?:%5B|\[)\d*(?:%5D|\])=([A-Za-z_]+)/.exec(u); return m ? m[1] : 'KO_KR'; };
-    const trOk = (p, l) => { const s = p && p.translationInfo && p.translationInfo.translationStatusForTranslator && p.translationInfo.translationStatusForTranslator[l]; return !!s && s.applied_count >= 1 && !s.on_sale_count && !s.is_denied; };
+    const trSt = (p, l) => (p && p.translationInfo && p.translationInfo.translationStatusForTranslator && p.translationInfo.translationStatusForTranslator[l]) || null;
+    const trOk = (p, l) => { const s = trSt(p, l); return !!s && s.applied_count >= 1 && !s.on_sale_count && !s.is_denied; };
+    // 0.61.0 사용자: 신청중만 / 아직 없음 / 전체를 칩으로 고른다(저장 키 tr.show, 기본 신청중 = 예전과 같음). '아직 없음' = 그 언어 신청 0·판매 0·거절 아님
+    const trNone = (p, l) => { const s = trSt(p, l); return !s || (!(s.applied_count >= 1) && !s.on_sale_count && !s.is_denied); };
     const trFix = (r, u) => r.clone().json().then((j) => {
       const ps = j && j.data && j.data.products;
       if (!Array.isArray(ps)) return r;
-      j.data.products = ps.filter((p) => trOk(p, trLang(u)));
+      const l = trLang(u), mode = store.get('tr.show');
+      for (const p of ps) if (p && p.id) { const s = trSt(p, l); trSeen.set(p.id, { n: (s && s.applied_count) || 0, d: !!(s && s.is_denied), l }); } // 버튼 글자용(trBtns)
+      if (mode !== 'all') j.data.products = ps.filter((p) => (mode === 'none' ? trNone(p, l) : trOk(p, l)));
       return new w.Response(JSON.stringify(j), { status: r.status, statusText: r.statusText, headers: r.headers });
     }, () => r);
     const of = w.fetch;
     if (typeof of === 'function') {
       put('fetch', function (a, b) {
         const u = typeof a === 'string' ? a : (a && a.url) || '';
-        const p = of.call(this, fix(a), b);
+        let a2 = fix(a);
+        if (a2 === a && a && typeof a === 'object' && typeof a.url === 'string' && trUrl(a.url) !== a.url) try { a2 = new w.Request(trUrl(a.url), a); } catch (e) { /* 못 바꾸면 그대로 */ }
+        const p = of.call(this, a2, b);
         return /\/translatableProducts\.json/.test(u) ? p.then((r) => trFix(r, u)) : p;
       });
     }
@@ -496,6 +551,8 @@
     else old();
   }
   const toneOf = (n) => (n >= 50 ? 'c3' : n >= 30 ? 'c2' : n ? 'c1' : 'c0'); // 쿠폰 할인율 색
+  const cpTone = (e) => (e > 30 ? 'q4' : e > 20 ? 'q3' : e > 10 ? 'q2' : 'q1'); // 0.60.0 카드 쿠폰 딱지 색(10·20·30% 구간, 사용자 결정)
+  const offTone = (p) => (p >= 80 ? 'o4' : p > 50 ? 'o3' : p > 30 ? 'o2' : 'o1'); // 0.60.0 할인율 딱지 색(30·50·80 구간, 사용자 결정)
 
   // 안전 정지: 사이트가 429/403/503을 돌려주면 백그라운드 요청을 30분 멈춘다.
   const NET_COOL_MS = 30 * 60 * 1000;
@@ -1222,7 +1279,8 @@
       }
       let best = [];
       for (const g of groups.values()) if (g.length > best.length) best = g;
-      list._items = best.length >= 3 ? best : [];
+      // 0.60.0 사이트 작품 목록(ul.n_work_list)이면 1~2장이어도 목록이다 — 조건을 많이 걸어 2장이 나오면 바·필터 수·↺가 사라져 되돌릴 수 없었다(실측 2026-11-21)
+      list._items = best.length >= 3 || (best.length && best[0].matches('ul.n_work_list > li.n_work_list_item')) ? best : [];
       return list._items;
     },
 
@@ -1478,7 +1536,7 @@
       // 0.49.0 사진 위 띠(사용자 시안): 왼쪽 CV(음성)·작가(그 밖), 오른쪽 쿠폰·묶음 딱지. DLW·품번은 제목 위 줄(list.row)로 옮겼다.
       // 장바구니·즐겨찾기는 이름을 안 띄우고, 장바구니 쿠폰은 cart.paint(.dlcp)가 따로 그린다
       const my = route.isMy(location.pathname);
-      const bs = route.isRank(location.pathname) ? [] : (coupon.badges(x.id) || []);
+      const bs = route.isRank(location.pathname) ? [] : (coupon.badges(x.id, x.price) || []);
       const who = my ? null : list.person(card, x);
       const due = my ? list.due(x) : null;
       const sig = [who ? who.k + who.names.join('/') + who.tail : '', bs.map((b) => b.join(':')).join(','), due ? due.k + due.t : ''].join('|');
@@ -1493,31 +1551,22 @@
       box.replaceChildren(...(name ? [el('div', { class: 'dlbd' }, name)] : []), ...(cover && x.id ? [list.dlw(x.id)] : []));
       if (route.isCart(location.pathname)) list.cartFoot(card);
     },
-    // 0.50.2 장바구니: 언어 라벨 → 카트로 되돌린다 → ☆ → 🗑을 한 줄로 이어 붙인다(라벨 바로 오른쪽에서 시작, 세로 가운데 같게). 위치는 카드마다 라벨 폭이 달라 재서 정한다
+    // 장바구니 카드 언어 글자 자리와 '나중에 산다·☆·🗑' 줄(0.60.0 A안 — 예전 0.50.2~0.58.7의 '라벨 오른쪽 같은 줄'은 뺐다)
     cartFoot(card) {
       const o = card.querySelector('dd.n_work_option'), f = card.querySelector('dd.cart_item_foot');
-      if (!o || !f) return;
-      for (const p of ['margin-left', 'margin-top', 'align-self']) f.style.removeProperty(p); // 0.55.0 다시 잴 때 지난번 값(아래 줄로 내린 것 등)을 지우고 잰다
-      // 0.58.6 보이는 라벨만 기준으로 잰다. 한국어판 카드는 첫 라벨이 빈 칸(display:none)이라 그 위치(0)로 재서 줄이 화면 위 -500px~-2300px로 날아가
-      //  '나중에 산다·☆·🗑'이 15장 중 14장에서 안 보였다(2026-11-21 로그인 폰 화면). 보이는 라벨이 없으면 줄을 원래 자리(라벨 아래)에 둔다
-      const chips = [...o.children].filter((c) => c.getClientRects().length && c.getBoundingClientRect().width > 0);
-      // CSS의 -20px가 가격 줄에 겹치지 않게 제 줄에, [고르기]로 카드가 좁아져도 안 넘치게 오른쪽 끝에 붙인다
-      if (!chips.length || !o.getClientRects().length) { f.style.setProperty('margin-top', '2px', 'important'); f.style.setProperty('margin-left', '0px', 'important'); f.style.setProperty('align-self', 'flex-end', 'important'); return; }
-      const oh = o.getBoundingClientRect(), ml = parseFloat(getComputedStyle(o).marginLeft) || 0;
-      const last = chips.reduce((w, c) => Math.max(w, c.getBoundingClientRect().right), 0); // 라벨들이 끝나는 곳
-      f.style.setProperty('margin-left', Math.round(ml + (last - oh.left) + 10) + 'px', 'important');
-      const cy = (e) => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; };
-      const link = f.querySelector('a') || f;
-      let mt = -Math.round((oh.height + f.getBoundingClientRect().height) / 2);
-      f.style.setProperty('margin-top', mt + 'px', 'important');
-      const d = cy(chips[0]) - cy(link); // 라벨 글자 줄과 링크 글자 줄의 세로 차이를 한 번 더 보정
-      if (Math.abs(d) >= 0.5 && Math.abs(d) < 40) f.style.setProperty('margin-top', (mt + Math.round(d)) + 'px', 'important');
-      // 라벨이 둘 이상(전연령·한국어 등)이라 링크가 카드 끝을 넘으면 글자가 접히므로, 그 카드만 라벨 아래 줄 오른쪽 끝으로 내린다
-      const L = card.getBoundingClientRect();
-      // 결정 이유: 넘침은 줄 전체(☆·🗑 포함)로, 글자 접힘은 링크 높이로 잰다(0.55.1은 링크만 봐서 뒤 칸이 카드 밖으로 나갔다, 배치 자동 시험)
-      if (f.getBoundingClientRect().right > L.right - 4 || link.getBoundingClientRect().height > 22) {
-        f.style.setProperty('margin-left', '0px', 'important'); f.style.setProperty('margin-top', '4px', 'important'); f.style.setProperty('align-self', 'flex-end', 'important');
+      // 0.60.0 사용자 결정(A안): 언어는 사진 아래 형식 띠 바로 밑에 글자만(사이트 언어 딱지는 숨김), 오른쪽 줄은 D-5·쿠폰·묶음, '나중에 산다·☆·🗑'은 늘 맨 아래 줄 오른쪽
+      const r = card.querySelector('.dlrow.dlrc'), lgN = o && [...o.querySelectorAll('[class*="icon_L_"]')].find((n) => n.textContent.trim());
+      if (r && lgN) {
+        let lc = r.querySelector('.dllgc');
+        if (!lc) { lc = el('span', { class: 'dllgc' }); r.append(lc); }
+        if (lc.textContent !== lgN.textContent.trim()) lc.textContent = lgN.textContent.trim();
+        lgN.classList.add('dlhid');
+        const band = card.querySelector('.work_category'), th = r.parentElement.querySelector(':scope > dt.n_work_thumb, :scope > .work_thumb');
+        const B = (band && band.getClientRects().length ? band : th || r.parentElement).getBoundingClientRect(), R = r.parentElement.getBoundingClientRect();
+        lc.style.left = Math.round(B.left - R.left) + 'px'; lc.style.width = Math.round(B.width) + 'px'; lc.style.top = Math.round(B.bottom - R.top + 2) + 'px';
+        r.parentElement.style.minHeight = Math.round(B.bottom - R.top + 26) + 'px'; // 글자가 카드 밖(다음 카드)으로 나가지 않게
       }
+      if (f) { f.style.setProperty('margin-left', 'auto', 'important'); f.style.setProperty('margin-top', '8px', 'important'); f.style.setProperty('align-self', 'flex-end', 'important'); }
     },
     // 0.50.0 가격 아래 칩(쿠폰 파랑·묶음 보라)과 가격 옆 마감 칸. 가격 칸(.n_work_price_wrap·.work_price_wrap)이 없는 카드는 안 붙인다
     chips(card, bs, due) {
@@ -1530,13 +1579,15 @@
       if (lab) {
         // 0.58.7 사용자 결정(B안): 장바구니는 마감(D-5)도 같은 줄 맨 앞 — D-5 · 쿠폰 · 나중에 산다가 한 줄(가격 아래 한 줄이 줄어듦)
         if (due && pw) { lab.prepend(el('span', { class: 'dldue ' + due.k }, due.t)); due = null; }
-        lab.append(...[...bs].sort((a, b) => (b[0] === 'bk') - (a[0] === 'bk')).map(([c, t]) => el('span', { class: 'dlcpn' + (c === 'bk' ? ' bk' : '') }, t)));
+        lab.append(...[...bs].sort((a, b) => (a[0] === 'bk') - (b[0] === 'bk')).map(list.cpn)); // 0.60.0 A안: D-5 · 쿠폰 · 묶음 순
         bs = [];
       }
       if (pw) { const sl0 = pw.querySelector('.dlsl, .overseas_discount_label'); if (sl0 && pw.firstElementChild !== sl0) pw.prepend(sl0); } // 0.50.2 할인율 칸은 가격 왼쪽(같은 줄, 사용자 편집본)
       if (!at || route.isRank(location.pathname)) return; // 랭킹은 칩 줄 없음
       if (!bs.length && !(due && pw)) return; // 0.55.0: 빈 칩 줄을 남기지 않는다(격자 버튼은 아래에 고정)
-      const ch = el(at.tagName === 'DD' ? 'dd' : 'div', { class: 'dlch' }, ...(due && pw ? [el('span', { class: 'dldue ' + due.k }, due.t)] : []), ...bs.map(([c, t]) => el('span', { class: 'dlcpn' + (c === 'bk' ? ' bk' : '') }, t)));
+      const ben = card.querySelector('.dlben'); // 0.60.0 격자 카드: 마감 칸은 쿠폰·묶음 줄 맨 앞
+      if (ben && due && pw && !bs.length) { ben.prepend(el('span', { class: 'dldue ' + due.k }, due.t)); return; }
+      const ch = el(at.tagName === 'DD' ? 'dd' : 'div', { class: 'dlch' }, ...(due && pw ? [el('span', { class: 'dldue ' + due.k }, due.t)] : []), ...bs.map(list.cpn));
       at.after(ch);
     },
     // 마감 칸 글자: 오늘 마감 HH:MM(빨간 테두리) · 3일 안 D-n MM/DD(주황) · 그 뒤(회색). 마감 시각은 카드 글자(~ 11/12 13:59)에서 읽는다(요청 없음), 없으면 칸을 안 붙인다
@@ -1566,6 +1617,51 @@
       if (who.tail) node.append(who.tail);
       return node;
     },
+    // 0.60.0 사용자: 제목이 잘리면 안 된다 → 글자는 다 보이게 두고, 화면에서 같은 줄에 선 격자 카드끼리 칸마다 제일 높은 카드에 맞춘다(min-height).
+    // 읽기를 다 한 뒤 한꺼번에 쓴다(레이아웃 한 번). 요청 없음
+    _eqT: 0,
+    eqSoon() { clearTimeout(list._eqT); list._eqT = setTimeout(() => safe(list.equalize), 120); },
+    equalize() {
+      const SL = [':scope > .dlrow', ':scope > dd.n_work_name', ':scope > dd.n_maker_name', ':scope > dd.n_work_rating, :scope > dd.n_work_value, :scope > .dlv0', ':scope > dd.n_work_option:has([class*="icon_REV"])', ':scope > dd.n_work_price_wrap', ':scope > .dlben', ':scope > dd.n_work_couple'];
+      const cards = [...document.querySelectorAll('li.dlgrid')].filter((c) => c.style.display !== 'none' && c.getClientRects().length);
+      const cells = cards.map((c) => { const dl = c.querySelector(':scope > dl') || c; return SL.map((s) => { const n = dl.querySelector(s); return n && n.getClientRects().length ? n : null; }); }); // 숨은 칸(display:none)은 위치가 0이라 빼야 한다(코끼리 검수)
+      for (const c of cards) for (const n of c.querySelectorAll('[data-dleq]')) { n.style.removeProperty('margin-top'); delete n.dataset.dleq; } // 숨겨져 빠진 칸에 남은 여백도 지운다
+      for (const row of cells) for (const n of row) if (n) n.style.removeProperty('min-height');
+      const rows = new Map();
+      cards.forEach((c, i) => { const k = Math.round(c.getBoundingClientRect().top); if (!rows.has(k)) rows.set(k, []); rows.get(k).push(i); });
+      const hs = cells.map((row) => row.map((n) => (n ? n.getBoundingClientRect().height : 0)));
+      const multi = [...rows.values()].filter((idx) => idx.length > 1);
+      for (const idx of multi) {
+        SL.forEach((s, j) => {
+          const m = Math.max(...idx.map((i) => hs[i][j]));
+          for (const i of idx) { const n = cells[i][j]; if (n && m > hs[i][j] + 0.5) n.style.setProperty('min-height', Math.ceil(m) + 'px', 'important'); }
+        });
+      }
+      // 결정 이유: 높이만 맞추면 한쪽 카드에 칸이 없거나(작가 없음 등) 여백이 다를 때 아래 칸이 3~5px 어긋났다(실측 2026-11-21) → 칸마다 시작 위치도 맞춘다.
+      //  위 칸부터 차례로: 읽기 한 번 → 낮은 쪽에 margin-top을 더한다(칸 수만큼 레이아웃, 화면 줄마다가 아니라 전체 한꺼번에)
+      SL.forEach((s, j) => {
+        const tops = cards.map((c, i) => (cells[i][j] ? cells[i][j].getBoundingClientRect().top - c.getBoundingClientRect().top : null));
+        const mts = cells.map((row) => (row[j] ? parseFloat(getComputedStyle(row[j]).marginTop) || 0 : 0));
+        for (const idx of multi) {
+          const have = idx.filter((i) => tops[i] != null);
+          if (have.length < 2) continue;
+          const m = Math.max(...have.map((i) => tops[i]));
+          for (const i of have) if (m - tops[i] > 0.5) { const n = cells[i][j]; n.style.setProperty('margin-top', (mts[i] + m - tops[i]).toFixed(2) + 'px', 'important'); n.dataset.dleq = '1'; }
+        }
+      });
+    },
+    // 0.60.0 쿠폰·묶음 딱지 하나. 색은 구간 class(q1~q4, bk). 묶음은 꾹 = 그 묶음 할인 화면(사용자 요청), 짧게는 아무것도 안 함(사진 링크로 안 넘어감)
+    cpn([c, t, key]) {
+      const s = el('span', { class: 'dlcpn ' + c }, t);
+      if (c === 'bk' && key) {
+        s.title = '꾹 누르면 묶음 할인 화면';
+        s.style.webkitTouchCallout = 'none';
+        s.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
+        s.addEventListener('contextmenu', (ev) => ev.preventDefault());
+        pressable(s, () => {}, () => location.assign(bulkUrl(key)));
+      }
+      return s;
+    },
     // 누르거나 길게 누르면 작품을 열지 않고(링크·이미지 메뉴도 막고) 글자 복사. 복사되면 잠깐 초록색
     copier(node, text) {
       const copy = (ev) => { ev.preventDefault(); ev.stopPropagation(); copyText(node, text); };
@@ -1574,16 +1670,25 @@
     },
     // 할인율을 가격 옆 작은 딱지로(0.42.0, 폰 카드). 원화 화면은 사이트가 가격 옆(.overseas_discount_label)에 넣고, 엔화 화면은 아래 빨간 띠(.n_sale_state)에만 있어
     // 그 글자를 가격 옆에 복사한다. 띠·サンプル/カート 버튼 줄은 CSS로 숨김(작품 화면에 들어가면 그대로 있음)
+    // 0.60.0 할인율 딱지 색 구간(30 이하·50 이하·80 미만·80 이상, 사용자 결정) — 사이트 딱지(.icon_campaign)와 우리 딱지(.dlsl) 모두
+    band(n) {
+      const p = +((n.textContent.match(/(\d{1,3})\s*%/) || [])[1] || 0);
+      const k = p ? offTone(p) : '';
+      for (const c of ['o1', 'o2', 'o3', 'o4']) n.classList.toggle(c, c === k);
+    },
     saleTag(card) {
+      for (const n of card.querySelectorAll('.n_work_price_wrap .icon_campaign, .work_price_wrap .icon_campaign, .dlsl')) list.band(n);
       const pw = card.querySelector('.n_work_price_wrap, .work_price_wrap');
       if (!pw || pw.querySelector('.icon_campaign')) return;
       const s = card.querySelector('.n_sale_state .icon_campaign, .sale_discount_rate'); // 0.50.0 즐겨찾기 카드는 .sale_discount_rate에 할인율이 있다
       const t = s && s.textContent.trim();
       if (!t) return;
       const old = pw.querySelector('.dlsl');
-      if (old) { if (old.textContent !== t) old.textContent = t; return; } // 0.55.0: 사이트가 할인율을 바꾸면 있던 칸 글자만 고친다
+      if (old) { if (old.textContent !== t) { old.textContent = t; list.band(old); } return; } // 0.55.0: 사이트가 할인율을 바꾸면 있던 칸 글자만 고친다
       if (card.querySelector('.dlch .icon_campaign')) return;
-      pw.append(el('span', { class: 'dlsl' }, t));
+      const sl = el('span', { class: 'dlsl' }, t);
+      list.band(sl);
+      pw.append(sl);
     },
     // 사진 아래 한 줄(정리안3): 품번(누르면 복사) · 쿠폰·묶음 · ♥(로그인일 때). 사진 칸(dt 등) 바로 뒤에 넣는다
     // 0.49.0: 제목 바로 위 한 줄 = DLW · 품번(설정 '품번 표시'일 때). 제목 칸이 없는 카드는 예전처럼 사진 칸 바로 뒤
@@ -1604,10 +1709,13 @@
       const sc = card.querySelector('a.btn_cart'); // 사이트 장바구니(만화 등): 숨기고 아이콘 버튼이 이걸 대신 누른다
       let act = card.querySelector(':scope > .dlact');
       const onCover = !route.isCart(location.pathname) && !route.isRank(location.pathname); // 0.50.0 사용자 결정: 즐겨찾기·검색 목록은 DLW를 표지 오른쪽 위에(list.deco)
-      const bs = onCover ? (coupon.badges(x.id) || []) : []; // 0.51.2 쿠폰·묶음은 형식 딱지 옆(사용자 확정 C안). 장바구니·랭킹은 가격 아래(list.chips)
+      const bs = onCover ? (coupon.badges(x.id, x.price) || []) : []; // 0.60.0 쿠폰·묶음은 가격 아래 한 줄(.dlben, 사용자 확정 B안). 장바구니·랭킹은 list.chips
       const ag = onCover && voice.pendingFor(x.id); // 0.55.0 사용자 결정: 한국어 번역 신청중(신청 1↑·판매 0)인 작품만 딱지, 나머지는 아무것도 안 그림
-      const sig = [x.id, fav.ok(), on, !!sc, !!act, pidOn, bs.map((b) => b.join(':')).join(','), ag].join('|');
-      if (card.dataset.dlsig === sig && r && at) return;
+      // 0.60.0 언어는 형식 칸 오른쪽에 글자만(사이트 언어 딱지는 격자에서 숨김), 번역 신청중은 그 뒤에 '·'로
+      const lgN = onCover ? [...card.querySelectorAll('dd.n_work_option [class*="icon_L_"]')].find((n) => n.textContent.trim()) : null;
+      const lg = lgN ? lgN.textContent.trim() : '';
+      const sig = [x.id, fav.ok(), on, !!sc, !!act, pidOn, bs.map((b) => b.join(':')).join(','), ag, lg].join('|');
+      if (card.dataset.dlsig === sig && r && at && (!onCover || card.querySelector('.dlben'))) return;
       card.dataset.dlsig = sig;
       if (r && !at) { r.remove(); r = null; }
       if (!r) {
@@ -1625,8 +1733,16 @@
         const cs = getComputedStyle(cat);
         ty = el('span', { class: 'dlty', style: `background:${cs.backgroundColor};color:${cs.color}` }, cat.textContent.trim().replace(/[・･].*$/, ''));
       }
-      r.replaceChildren(...(ty ? [ty] : []), ...bs.map(([c, t]) => el('span', { class: 'dlcpn' + (c === 'bk' ? ' bk' : '') }, t)), ...(ag ? [el('span', { class: 'dltg y', title: '한국어 번역 신청중' }, '번역 신청중')] : []), ...(pidOn ? [list.copier(el('span', { class: 'dlpn', title: '누르면 품번 복사' }, x.id), x.id)] : []), ...(onCover ? [] : [list.dlw(x.id)])); // 형식 · 품번 · DLW
+      r.replaceChildren(...(ty ? [ty] : []), ...(lg ? [el('span', { class: 'dllg' }, lg)] : []), ...(ag ? [...(lg ? [el('span', { class: 'dlsep', 'aria-hidden': 'true' }, '·')] : []), el('span', { class: 'dltg y', title: '한국어 번역 신청중' }, '번역 신청중')] : []), ...(pidOn ? [list.copier(el('span', { class: 'dlpn', title: '누르면 품번 복사' }, x.id), x.id)] : []), ...(onCover ? [] : [list.dlw(x.id)])); // 형식 · 언어 · 번역 (격자 밖은 DLW)
       card.classList.toggle('dlgrid', onCover);
+      if (onCover) { // 0.60.0 가격 아래 쿠폰·묶음 줄(비어도 자리는 둔다 — 옆 카드와 버튼 줄 높이가 같게). 별점이 없는 카드엔 빈 별점 칸
+        const dl = r.parentElement;
+        let ben = card.querySelector('.dlben');
+        if (!ben) ben = el(dl.tagName === 'DL' ? 'dd' : 'div', { class: 'dlben' });
+        if (ben.parentElement !== dl) dl.append(ben);
+        ben.replaceChildren(...bs.map(list.cpn));
+        if (dl.tagName === 'DL' && !dl.querySelector(':scope > dd.n_work_value, :scope > dd.n_work_rating, :scope > .dlv0')) dl.append(el('dd', { class: 'dlv0', 'aria-hidden': 'true' }));
+      }
       if (!r.childElementCount) r.remove(); // 보일 게 없으면(품번 꺼짐·형식 칸 없음·DLW는 표지) 빈 줄을 안 남긴다
       // 0.58.6 사용자 결정: 장바구니는 형식 칸(보이스 등)을 사진 아래로 — 맨 위 한 줄이 비어 쿠폰 딱지가 카드 안에 들어온다(전엔 카드 밖으로 삐져나와 다음 카드에 깔림)
       const th = route.isCart(location.pathname) && r.isConnected && r.parentElement.querySelector(':scope > dt.n_work_thumb, :scope > .work_thumb');
@@ -1645,7 +1761,8 @@
       // 0.58.5 번역판 카드는 사이트가 '作品ページへ'만 주고 카트 버튼이 없다(한국어 검색 30장 중 27장, 2026-11-21 로그인 폰 화면).
       // 카드의 data-translation-child-worknos(살 수 있는 판 번호)로 사이트 카트 버튼과 같은 POST 1번(누를 때만). 판이 여럿(자막판 등)이면 작품 화면을 연다(거기서 판을 고름)
       const kids = sc ? [] : childIds;
-      const page = kids.length > 1 && card.querySelector('a.btn_page, a[href*="/work/=/product_id/"]');
+      // 0.60.0 사이트 카트 버튼도 판 번호도 없는 카드(발매 예정·이미 담음·구입함 등)도 버튼 자리를 비우지 않는다 — 누르면 작품 화면(카드마다 버튼 줄이 들쭉날쭉했다)
+      const page = (kids.length > 1 || (!sc && kids.length !== 1)) && card.querySelector('a.btn_page, a[href*="/work/=/product_id/"]');
       const cartB = (sc || kids.length === 1 || page) && !wish ? el('button', { class: 'dlcart', 'aria-label': page ? '장바구니(작품 화면에서 판 고르기)' : '장바구니' }, icon('ct')) : null;
       if (cartB) cartB.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); if (sc) sc.click(); else if (page) location.assign(page.href); else cartAdd(kids[0], cartB); });
       if (act) act.remove();
@@ -1667,7 +1784,9 @@
       list.lastData = data;
       const hideAiOpt = opt('hideAI');
       const bl = blockSet();
-      const couponIds = S.coupon ? coupon.ids(S.coupon) : [];
+      // 0.60.0 쿠폰·할인 거르기는 칩 바가 있는 목록에서만 — 장바구니·랭킹·첫 화면엔 끌 칩이 없는데 다른 화면에서 켠 쿠폰·할인이 남아 카드가 사라졌다
+      const lp = location.pathname, barHere = route.isList(lp) || route.isWish(lp);
+      const couponIds = S.coupon && barHere ? coupon.ids(S.coupon) : [];
       const couponOn = couponIds.length > 0;
       const siteSide = route.isSearch(location.pathname); // 검색 목록의 할인·할인율은 사이트가 주소로 거르므로 여기서 또 거르지 않는다
       const saleSide = siteSide || !!fsrOf(location.pathname); // 0.58.4 서클·장르·형식·할인·독점 목록도 주소로 거른다 — 이벤트·즐겨찾기에서 켠 할인이 여기로 새어 카드가 몰래 사라졌다
@@ -1679,23 +1798,26 @@
       const wtc = decodeURIComponent(location.pathname).match(/work_type_category(?:\[\d+\])?\/[a-z_]+/g) || [];
       const mangaOnly = siteSide && wtc.length === 1 && /\/comic$/.test(wtc[0]);
       const notManga = (e) => { const c = e.querySelector('.work_category'); return (c && !c.classList.contains('type_MNG')) || /발매\s*예정|발매\s*전|発売予定/.test(e.textContent); };
-
-      for (const x of data) {
-        const cm = couponOn ? coupon.match(couponIds, x.id) : true;
-        if (x.id && voice.couponsFor(x.id) === null) unknown.push(x.id); // 쿠폰 거르기와 카드 딱지에 쓴다
-        const ok = !(x.ai && hideAiOpt) && !(mangaOnly && notManga(x.e))
+      const pass = (x) => !(x.ai && hideAiOpt) && !(mangaOnly && notManga(x.e))
           && !(bl.size && (x.names.some((n) => bl.has(n)) || x.vas.some((n) => bl.has(normName(n)))))
-          && (saleSide || !S.sale || x.sale)
-          && (saleSide || !S.rate || x.rate >= S.rate)
+          && (!cpSide || !S.sale || x.sale) // 0.60.0 할인중은 이벤트 화면 안에서만(즐겨찾기는 주소 discount/1, 나머지는 주소로 거름) — 이벤트에서 켠 것이 즐겨찾기·장바구니로 새었다
+          && (saleSide || !(cpSide || route.isWish(lp)) || !S.rate || x.rate >= S.rate)
           && !(x.tanwa && keepTanwa === false)
           && (!cpSide || !S.age || !x.age || x.age === S.age)
           && (!cpSide || !S.price || !isFinite(x.price) || priceIn(x.price, S.price))
-          && cm !== false;
+          && (!couponOn || coupon.match(couponIds, x.id) !== false);
+      // 0.62.0 이벤트 화면에서 화면 안에서 거르는 조건(연령·가격·할인·쿠폰)을 켜면 다른 쪽에서 맞는 작품을 받아 맨 앞에 모은다(evAll, 사용자 '전체에서 모음')
+      for (const x of data) if (x.id && voice.couponsFor(x.id) === null) unknown.push(x.id); // 쿠폰 거르기와 카드 딱지에 쓴다(아래 return 전에 — 받아 넣은 카드도 조회되게)
+      if (unknown.length) coupon.checkSoon(unknown);
+      if (cpSide && evAll.sync(items, pass, !!(S.age || S.price || (S.sale && !/\/campaign\/discount/.test(lp)) || (S.rate && !(cpRateOk(lp) && cpRead(location.href).rate === S.rate)) || couponOn))) { list.scheduleApply(30); return; }
+
+      for (const x of data) {
+        const ok = pass(x);
         const wantDisp = ok ? '' : 'none';
         if (x.e.style.display !== wantDisp) x.e.style.display = wantDisp;
         if (ok) shown++;
       }
-      if (unknown.length) coupon.checkSoon(unknown);
+      list.eqSoon();
       if (couponOn) allList.start(data.length);
 
       // 보이는 카드만 오버레이 갱신 및 일괄 위치 측정 예약
@@ -1755,6 +1877,7 @@
       const a = s.cur, b = s.def, key = (x) => [...(x || [])].sort().join();
       let n = 0;
       for (const k of ['forms', 'lang']) if (a[k] && key(a[k]) !== key(b[k])) n++;
+      if (a.sex && a.sex.length > 1) n++; // 0.60.0 TL+BL 함께 고른 것은 조건 1개(층 하나는 '지금 있는 곳'이라 안 센다)
       if (`${a.sale ? 1 : 0}|${a.rate || 0}` !== `${b.sale ? 1 : 0}|${b.rate || 0}`) n++;
       if (a.genres && key(a.genres) !== key(b.genres)) n++; // 0.55.0: 목록 화면의 기본 장르(예: 태그 목록)와 같으면 안 센다
       if ((a.age || '') !== (b.age || '')) n++; // 0.46.0 연령
@@ -1781,6 +1904,11 @@
         return;
       }
       if (px) px.hidden = true;
+      if (route.isTrans(location.pathname)) { // 0.61.0 번역 목록: 아래 [필터] = 언어·정렬·형식 창(trOpen)
+        fb.hidden = !document.getElementById('dltr'); fb.disabled = false; fb.classList.remove('ap');
+        fb.replaceChildren(icon('fl'), el('span', {}, '필터'), ...(trCount ? [el('b', {}, String(trCount))] : []));
+        return;
+      }
       const ap = !!list.staged;
       fb.hidden = !bar; // 목록 화면이면 늘 보인다(0.42.0: 우리 필터 창을 연다)
       fb.classList.toggle('ap', ap);
@@ -1833,6 +1961,10 @@
         const goOrder = (v) => {
           if (isSearch) return goPath(['order', 'page'], [['order', v]]);
           if (route.isCampaign(location.pathname)) { location.assign(cpUrl(location.href, { ...cpRead(location.href), order: v })); return; } // 0.58.0
+          if (/\/works\/type\//.test(location.pathname)) { // 0.60.0 형식 목록은 사이트가 정렬을 무시한다 → 같은 작품을 찾는 검색(/fsr/)에 정렬을 붙여 연다(필터 창과 같은 길)
+            const c = fsrOf(location.pathname);
+            if (c) { const np = pathSet(c.fsr, ['order', 'page'], [['order%5B0%5D', v]]); userOff.mark(langPath(np, []) || np, 'lang'); return stage(np); } // 형식 목록은 언어를 안 거르니 한국어 기본도 안 붙인다
+          }
           return stage(nonSearchOrder(curPath(), v) || null);
         };
         // 쿠폰: 팝업에서 하나(맨 위 '가진 쿠폰 아무거나' = 전부). 고른 것을 다시 누르면 끔
@@ -1887,7 +2019,7 @@
         // 정렬 칩이 이 화면에서 못 쓰이면 빼지 않고 흐리게 자리만 둔다(0.42.2: 화면마다 칩 줄이 같은 모양)
         const offChip = () => { const b = chip('sort'); b.disabled = true; label(b, '정렬'); return b; };
         // 정렬이 되는 목록인가: 검색은 늘 되고, 작품 형식 목록(/works/type/)만 안 된다
-        const canSort = isSearch || !/\/works\/type\//.test(location.pathname);
+        const canSort = true; // 0.60.0 형식 목록도 검색으로 넘겨 정렬한다(goOrder)
         // 0.49.0 즐겨찾기 정렬(WSORTS). 종료임박은 할인만·100개로 열어 우리가 다시 줄 세운다. 다른 정렬로 바꾸면 그 두 조건은 뺀다
         const wishSortChip = () => {
           const b = chip('sort');
@@ -1936,6 +2068,7 @@
           }
           let np = location.pathname;
           if (isSearch) {
+            if (pathGet(np, 'is_tl') === '1' && pathGet(np, 'is_bl') === '1') np = pathSet(np, ['is_tl', 'is_bl'], []); // 0.60.0 TL+BL 함께 → 지금 층만
             np = pathSet(np, ['discount_rates', 'campaign', 'order', 'page', 'genre', ...FLOOR_KEYS, 'work_type_name', ...AGE_KEYS, 'price_low', 'price_high'], [...(COUPON_RE.test(np) ? [] : [['order', DEF_ORDER]]), ...(floorDefOk(np) ? floorDefPairs() : [])]);
           } else {
             S.sale = false; S.rate = 0; store.set('sb.sale', false); store.set('sb.rate', 0);
@@ -1988,17 +2121,30 @@
           const cur = stateOf(p);
           if (conv && isCircle(lp0)) cur.lang = langCur(lp0); // 서클은 주소에 언어가 없으면 화면의 체크를 읽는다
           // 기본: 검색은 우리 기본값, 바꾼 목록은 그 목록의 처음 상태(할인 목록 = 할인중, 장르 목록 = 그 태그)
-          const def = conv ? stateOf(conv.base) : { sex: fl.sex, forms: DEF_FLOOR.forms, genres: [], sale: !!opt('saleOnly') && !COUPON_RE.test(p) && !NAME_SEARCH.test(p), rate: 0, lang: langDef(), age: '', price: '', order: COUPON_RE.test(p) ? 'trend' : DEF_ORDER };
+          const def0 = conv ? stateOf(conv.base) : null;
+          // 0.60.0 서클 주소에 언어가 없으면 화면 체크(사이트 기본 일본어·언어 불필요)가 기본이다 — 안 바꿨는데 '필터1'·↺가 뜨던 것(전수조사 2026-11-21)
+          if (def0 && isCircle(lp0) && !lp0.split('/').some((x) => OPT_SEG.test(x))) def0.lang = cur.lang;
+          const def = def0 || { sex: floorOf(p) ? [floorOf(p)] : fl.sex, forms: DEF_FLOOR.forms, genres: [], sale: !!opt('saleOnly') && !COUPON_RE.test(p) && !NAME_SEARCH.test(p), rate: 0, lang: langDef(), age: '', price: '', order: COUPON_RE.test(p) ? 'trend' : DEF_ORDER };
           const save = isSearch && document.querySelector('a.search_save');
-          return { search: true, sortOk: !(conv && isCircle(lp0)), cur, def, canSave: !!save, save: () => save.click(), run: (v) => {
+          return { search: true, sortOk: true, oneFloor: !!(conv && isCircle(lp0)), cur, def, canSave: !!save, save: () => save.click(), run: (v) => {
             const off = !v.sale && !v.rate;
             const ordPick = v.order && v.order !== cur.order && !(conv && isCircle(lp0)); // 0.51.0 필터 창에서 정렬을 바꿨다(서클 목록은 주소 모양이 달라 제외)
             // 바꾼 목록은 형식을 안 건드렸으면 원래 형식 조건(예: 형식 목록의 comic)을 그대로 둔다
             const keepFloor = conv && v.forms.join() === cur.forms.join();
-            let np = pathSet(p, [...(keepFloor ? [] : [...FLOOR_KEYS, 'work_type_name']), 'genre', 'discount_rates', 'campaign', 'page', ...AGE_KEYS, 'price_low', 'price_high', ...(ordPick || (off && /^c/.test(siteOrder())) ? ['order'] : [])],
+            const sexSame = [...v.sex].sort().join() === [...cur.sex].sort().join(); // 대상을 안 바꿨으면 is_tl·is_bl은 그대로 둔다
+            let np = pathSet(p, [...(keepFloor ? [] : [...FLOOR_KEYS, 'work_type_name']), ...(sexSame ? [] : ['is_tl', 'is_bl']), 'genre', 'discount_rates', 'campaign', 'page', ...AGE_KEYS, 'price_low', 'price_high', ...(ordPick || (off && /^c/.test(siteOrder())) ? ['order'] : [])],
               [...(ordPick ? [['order%5B0%5D', v.order]] : []), ...(keepFloor ? [] : floorPairs(v)), ...v.genres.map((n, i) => [`genre%5B${i}%5D`, n]), ...(v.rate ? [['discount_rates%5B0%5D', RATE_CODE[v.rate]]] : v.sale ? [['campaign', 'campaign']] : []),
                 ...(v.age ? [['age_category%5B0%5D', v.age]] : []), ...priceSegs(v.price).map(([k, val], i) => [k, val])]);
-            np = withFloor(np, v.sex[0]);
+            // 0.60.0 TL+BL 함께(사용자 요청): 주소에 is_tl/1·is_bl/1 둘 다(요청 수 그대로, 층 경로는 지금 것). 하나면 그 층 경로, 그 층 플래그가 원래 있었으면 다시 붙인다.
+            //  고른 대상이 없으면 지금 층(전엔 표가 빈 채로 지금 층을 몰래 찾았다). 서클은 층마다 작품이 달라 지금 층만
+            const fl1 = v.sex[0] || floorOf(lp0) || 'girls', isC = conv && isCircle(lp0);
+            if (sexSame) np = withFloor(np, isC ? floorOf(lp0) : floorOf(p) || fl1);
+            else if (v.sex.length > 1 && !isC) np = pathSet(np, [], [['is_tl', '1'], ['is_bl', '1']]);
+            else {
+              np = withFloor(np, isC ? floorOf(lp0) : fl1);
+              const fk = fl1 === 'bl' ? 'is_bl' : 'is_tl', ok1 = pathGet(p, fk) === '1' && pathGet(p, fk === 'is_bl' ? 'is_tl' : 'is_bl') !== '1';
+              if (!isC && ok1) np = pathSet(np, [], [[fk, '1']]);
+            }
             if (conv) {
               // 검색 화면으로 넘어가면 시작할 때 한국어 기본이 붙으니, 언어를 안 고른 것은 그 검색에 다시 붙이지 않게 적어 둔다
               if (!v.lang.length) userOff.mark(langPath(np, []) || np, 'lang');
@@ -2010,6 +2156,7 @@
               np = conv.back(np);
             }
             np = langPath(np, v.lang) || np;
+            if (conv && isCircle(lp0) && v.order && v.order !== cur.order) np = nonSearchOrder(np, v.order) || np; // 0.60.0 서클은 서클 주소 모양(order/값)으로 정렬(전엔 정렬 줄이 회색)
             if (!conv && !v.lang.length && langDef().length) userOff.mark(np, 'lang');
             if (off && opt('saleOnly')) userOff.mark(np, 'sale');
             list.staged = null;
@@ -2040,17 +2187,21 @@
   const cpArr = (u, k) => [...u.searchParams.entries()].filter(([x]) => x === k || x.startsWith(k + '[')).map(([, v]) => v);
   const cpRead = (href) => {
     const u = new URL(href), g1 = cpArr(u, 'group1'), g2 = cpArr(u, 'group2');
-    return { sex: cpArr(u, 'site_group').filter((v) => v === 'girls' || v === 'bl'), forms: FORMS.map((f) => f[0]).filter((f) => g1.includes(CP_FORM[f])), genres: cpArr(u, 'genre'), lang: LANGS.map((x) => x[0]).filter((c) => g2.includes(c)), order: u.searchParams.get('order') || 'trend' };
+    const rc = cpArr(u, 'discount_rate')[0];
+    return { sex: cpArr(u, 'site_group').filter((v) => v === 'girls' || v === 'bl'), forms: FORMS.map((f) => f[0]).filter((f) => g1.includes(CP_FORM[f])), genres: cpArr(u, 'genre'), lang: LANGS.map((x) => x[0]).filter((c) => g2.includes(c)), order: u.searchParams.get('order') || 'trend', ...(rc ? { rate: Number(Object.keys(RATE_CODE).find((k) => RATE_CODE[k] === rc)) || 0 } : {}) };
   };
+  // 0.62.0 할인 이벤트(campaign/discount)는 할인율도 사이트가 주소로 거른다(discount_rate[]=c8·c9·c10, 2026-11-22 실제: 80%↑ 3743 → 22건) — 모든 쪽에서 맞게. 묶음 할인은 확인 전이라 화면 안에서
+  const cpRateOk = (p) => /\/campaign\/discount(?:\/|$)/.test(p);
   const cpUrl = (href, v) => {
     const u = new URL(href), q = new URLSearchParams();
     const other = cpArr(u, 'site_group').filter((x) => x !== 'girls' && x !== 'bl'); // 남성향 등 우리 표에 없는 대상은 그대로 둔다
-    for (const [k, val] of u.searchParams.entries()) if (!/^(site_group|group1|group2|genre|order|page)(\[|$)/.test(k)) q.append(k, val);
+    for (const [k, val] of u.searchParams.entries()) if (!/^(site_group|group1|group2|genre|order|page|discount_rate)(\[|$)/.test(k)) q.append(k, val);
     const add = (k, vs) => vs.forEach((x, i) => q.append(`${k}[${i}]`, x));
     add('site_group', [...other, ...v.sex]);
     add('group1', [...new Set(v.forms.map((f) => CP_FORM[f]).filter(Boolean))]);
     add('group2', v.lang);
     add('genre', v.genres);
+    if (v.rate && RATE_CODE[v.rate] && cpRateOk(u.pathname)) add('discount_rate', [RATE_CODE[v.rate]]);
     if (v.order && v.order !== 'trend') q.set('order', v.order);
     u.search = q.toString();
     return u.href;
@@ -2081,7 +2232,10 @@
     const pp = pathPairs(p), vals = (k) => (pp ? pp.pairs.filter((x) => segKey(x[0]) === k && x[1] !== 'all').map((x) => x[1]) : []);
     const cats = vals('work_category'), wtc = [...vals('work_type_category'), ...(vals('work_type').includes('SOU') ? ['audio'] : [])];
     const cs = cats.length ? cats : ['doujin'];
-    return { sex: floorOf(p) ? [floorOf(p)] : [], forms: wtc.length ? FORMS.filter((f) => f[2].every((c) => cs.includes(c)) && f[3].every((t) => wtc.includes(t))).map((f) => f[0]) : [] };
+    // 0.60.0 사이트 숨은 조건 is_tl/is_bl(2026-11-21 실제 확인): 둘 다 있으면 TL+BL을 한 번에 찾는다(층 경로와 상관없이), 하나면 그 층
+    const tl = vals('is_tl').includes('1'), bl = vals('is_bl').includes('1');
+    const sex = tl && bl ? ['girls', 'bl'] : bl ? ['bl'] : tl ? ['girls'] : floorOf(p) ? [floorOf(p)] : [];
+    return { sex, forms: wtc.length ? FORMS.filter((f) => f[2].every((c) => cs.includes(c)) && f[3].every((t) => wtc.includes(t))).map((f) => f[0]) : [] };
   }
   // {sex, forms} → 주소 조각(값마다 [n])
   function floorPairs(sel) {
@@ -2200,6 +2354,8 @@
               const o = all[id] || (all[id] = { id, floor: 'girls', title: '', until: 0, seen: Date.now(), pcts: [], need: {} });
               if (pct && !o.pcts.includes(pct)) o.pcts.push(pct);
               if (pct) o.need[pct] = Math.min(o.need[pct] || need, need);
+              const yen = c.discount_type === 'price' ? +c.discount || 0 : 0; // 0.60.0 정액(엔) 쿠폰도 딱지에(색은 작품 값 대비 비율)
+              if (yen) { o.yens = o.yens || []; if (!o.yens.includes(yen)) o.yens.push(yen); o.needY = o.needY || {}; o.needY[yen] = Math.min(o.needY[yen] || need, need); }
               if (!o.title || pct >= Math.max(...o.pcts)) o.title = String(c.coupon_name || '').slice(0, 80);
               o.until = Math.max(o.until, until);
               if (id.startsWith('pid:')) o.pids = [...new Set((o.pids || []).concat(pids))];
@@ -2325,25 +2481,31 @@
       return ks === null ? (pk.length ? pk : null) : ks.concat(pk);
     },
     // 카드 딱지: 1개부터 쓰는 쿠폰 중 최고율, 그보다 높은 '2개 이상' 쿠폰, 묶음 할인. 아직 모르면 null
-    badges(pid) {
+    // 0.60.0 색 기준 = 그 작품에서 실제로 깎이는 비율(사용자 결정 ②): % 쿠폰은 그대로, 엔 쿠폰은 금액 ÷ 작품 값(엔, 카드 data-price). 값을 모르면 25로 본다.
+    // 묶음은 [bk, '묶음 65%', 묶음 키] — 끝났거나 아직 안 시작한 묶음(페이지가 /campaign/closed로 감)은 안 그린다
+    badges(pid, price) {
       const ks = coupon.keysFor(pid);
       if (ks === null) return null;
-      let one = 0, multi = 0, multiN = 0;
+      let one = null, multi = null;
       const live = new Set(coupon.ids('*')); // 기한이 지난 쿠폰은 빼고
+      const effOf = (v) => (v.y ? (price > 0 ? Math.round(v.y / price * 100) : 25) : v.p);
       for (const k of ks) {
         if (!live.has(k)) continue;
         const c = coupon.get(k);
-        const pcts = c && Array.isArray(c.pcts) && c.pcts.length ? c.pcts : (coupon.rate(k).match(/\d+/g) || []).map(Number);
-        for (const pc of pcts) {
-          const n = (c && c.need && c.need[pc]) || 1;
-          if (n <= 1) one = Math.max(one, pc);
-          else if (pc > multi) { multi = pc; multiN = n; }
+        const ys = c && Array.isArray(c.yens) ? c.yens : [];
+        const pcts = c && Array.isArray(c.pcts) && c.pcts.length ? c.pcts : ys.length ? [] : (coupon.rate(k).match(/\d+/g) || []).map(Number);
+        const vals = pcts.map((p) => ({ p, n: (c && c.need && c.need[p]) || 1 })).concat(ys.map((y) => ({ y, n: (c.needY && c.needY[y]) || 1 })));
+        for (const v of vals) {
+          v.e = effOf(v);
+          if (v.n <= 1) { if (!one || v.e > one.e) one = v; } else if (!multi || v.e > multi.e) multi = v;
         }
       }
+      const lab = (v) => (v.y ? v.y + '엔' : v.p + '%');
       const out = [];
-      if (one) out.push([toneOf(one), `쿠폰 ${one}%`]);
-      if (multi > one) out.push([toneOf(multi), `${multiN}개 ${multi}%`]);
-      if (voice.bulkFor(pid)) out.push(['bk', '묶음']);
+      if (one) out.push([cpTone(one.e), `쿠폰 ${lab(one)}`]);
+      if (multi && (!one || multi.e > one.e)) out.push([cpTone(multi.e), `${multi.n}개 ${lab(multi)}`]);
+      const bk = voice.bulkFor(pid);
+      if (bk) { const b = bulkInfo.get(bk); if (!b || b.open !== false) out.push(['bk', b && b.pct ? `묶음 ${b.pct}%` : '묶음', bk]); }
       return out;
     },
     status(sel, data) {
@@ -2353,6 +2515,58 @@
       let hit = 0, unk = 0;
       for (const x of data) { const r = coupon.match(ids, x.id); if (r === null) unk++; else if (r) hit++; }
       return `${name} 대상 ${hit}개` + (unk ? ` · 확인 중 ${unk}개` : '');
+    },
+  };
+
+  /* ========== 7.25 bulkInfo: 묶음 할인 키 → 할인율·진행 중인지(0.60.0) ==========
+     작품 정보 묶음에는 키(bulkbuy_key)만 있고 할인율이 없다(2026-11-21 응답 확인). 묶음 페이지 제목에 '3本以上65%OFF'가 있어 그것을 읽는다.
+     요청: 키마다 12시간에 GET 1(카드 수와 상관없이, 한 번에 하나씩). 그 묶음 페이지를 보고 있으면 요청 없이 제목을 읽는다.
+     끝났거나 아직 시작 안 한 묶음은 사이트가 /campaign/closed로 보낸다 → open:false(딱지 안 그림). */
+  const BULK_TTL = 12 * 3600 * 1000;
+  const bulkUrl = (key) => `https://www.dlsite.com/${(/^[a-z-]+$/.test(location.pathname.split('/')[1] || '') && location.pathname.split('/')[1]) || 'girls'}/campaign/bulkbuy/=/key/${encodeURIComponent(key)}/`;
+  const bulkInfo = {
+    q: new Set(),
+    busy: false,
+    all() { return store.get('bulk.info', {}) || {}; },
+    parse(t) {
+      const p = (String(t).match(/(\d{1,2})\s*[%％]\s*OFF/i) || [])[1];
+      const n = (String(t).match(/(\d+)\s*(?:本|点|作品|개|작품)\s*(?:以上|이상)/) || [])[1];
+      return { open: true, pct: p ? +p : 0, n: n ? +n : 0 };
+    },
+    put(key, v, t = Date.now()) {
+      const a = bulkInfo.all(), now = Date.now();
+      a[key] = { open: v.open, pct: v.pct, n: v.n, t };
+      for (const k of Object.keys(a)) if (!(now - a[k].t < BULK_TTL * 4)) delete a[k];
+      store.set('bulk.info', a);
+    },
+    get(key) {
+      if (!key) return null;
+      const m = location.pathname.match(/\/campaign\/bulkbuy\/=\/key\/([^/]+)/);
+      const a = bulkInfo.all(), v = a[key];
+      if (m && decodeURIComponent(m[1]) === key && (!v || Date.now() - v.t > 60 * 1000)) { const nv = bulkInfo.parse(document.title); bulkInfo.put(key, nv); return nv; }
+      if (v && Date.now() - v.t < BULK_TTL) return v;
+      bulkInfo.q.add(key);
+      setTimeout(bulkInfo.pump, 0);
+      return v || null; // 오래된 값이라도 다시 받을 때까지는 보여 둔다
+    },
+    pump() {
+      if (bulkInfo.busy || !net.ok()) return;
+      const key = bulkInfo.q.values().next().value;
+      if (!key) return;
+      bulkInfo.q.delete(key);
+      const v = bulkInfo.all()[key];
+      if (v && Date.now() - v.t < BULK_TTL) { bulkInfo.pump(); return; }
+      bulkInfo.busy = true;
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), FETCH_TIMEOUT);
+      fetch(bulkUrl(key), { credentials: 'include', signal: ctl.signal })
+        .then((r) => {
+          if (/\/campaign\/closed/.test(r.url || '')) return { open: false, pct: 0, n: 0 };
+          if (!r.ok) { net.trip(r.status); throw new Error('HTTP ' + r.status); }
+          return r.text().then((h) => bulkInfo.parse(((h.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || '') + ' ' + ((h.match(/<h1[^>]*>([\s\S]{0,300}?)<\/h1>/i) || [])[1] || '')));
+        })
+        .then((nv) => { net.good(); bulkInfo.put(key, nv); list.scheduleApply(50); cart.paint(); })
+        .catch(() => { bulkInfo.put(key, v || { open: true, pct: 0, n: 0 }, Date.now() - BULK_TTL + NET_COOL_MS); }) // 실패: 30분 뒤 다시(그동안은 '묶음'만)
+        .finally(() => { clearTimeout(to); setTimeout(() => { bulkInfo.busy = false; bulkInfo.pump(); }, VA_GAP_MS); });
     },
   };
 
@@ -2429,6 +2643,87 @@
       let hit = 0;
       for (const id of allList.ids) { const r = coupon.match(couponIds, id); if (r === null) return ''; if (r) hit++; }
       return ` · 전체 ${hit}/${allList.ids.length}`;
+    },
+  };
+
+  /* ========== 7.4 evAll (0.62.0): 이벤트·묶음 할인 화면에서 화면 안에서 거르는 조건(연령·가격·할인·쿠폰)을 켜면
+     다른 쪽(앞에서부터 최대 EV_MAX쪽)을 받아 맞는 작품을 맨 앞에 모은다(사용자 '전체에서 모음').
+     요청: 그 이벤트·조건 주소마다 처음 한 번, 쪽당 1번(최대 EV_MAX-1번, VA_GAP_MS 간격). 받은 카드는 이 탭 메모리에만 두고 연령·가격만 바꾸면 다시 안 받는다.
+     이벤트는 1만 건이 넘기도 해서(2026-11-22 실제 19,222건 = 385쪽) 전부는 못 받는다 — 태그·형식·언어·할인율은 사이트가 주소로 거르므로 그걸로 먼저 줄인다. */
+  const EV_MAX = 10, EV_PER = 50; // 사이트 이벤트 목록은 한 쪽 50개 고정(per_page를 붙여도 50, 2026-11-22 확인)
+  const evAll = {
+    key: '', pool: [], got: new Set(), started: false, need: false, tok: 0,
+    source() {
+      const p = location.pathname, sq = new URLSearchParams(location.search);
+      const qs = new URLSearchParams(sq); qs.delete('page'); qs.delete('locale');
+      const b = p.match(/^\/([^/]+)\/campaign\/bulkbuy\/=\/key\/([^/]+)/);
+      if (b) { const q = qs.toString(), pm = p.match(/\/page\/(\d+)/); return { key: 'b:' + b[2] + '?' + q, cur: pm ? +pm[1] : +sq.get('page') || 1, url: (n) => `https://www.dlsite.com/${b[1]}/campaign/bulkbuy/ajax/=/key/${b[2]}/page/${n}/${q ? '?' + q : ''}` }; }
+      const d = p.match(/^\/([^/]+)\/campaign\/discount(\/=\/.*)?$/);
+      if (!d) return null;
+      if (d[2]) { // 사이트 쪽 번호 링크 모양 /campaign/discount/=/hd/1/key/…/page/2
+        const base = p.replace(/\/page\/\d+/, '').replace(/\/+$/, ''), pm = p.match(/\/page\/(\d+)/);
+        return { key: 'd:' + base, cur: pm ? +pm[1] : 1, url: (n) => 'https://www.dlsite.com' + base.replace('/campaign/discount/=/', '/campaign/discount/ajax/=/') + '/page/' + n };
+      }
+      const aq = new URLSearchParams();
+      for (const [k, v] of qs) aq.append(k.replace(/\[\d+\]$/, '[]'), v); // 사이트 ajax는 group2[]=JPN 모양으로 보낸다
+      return { key: 'd:' + d[1] + '?' + aq, cur: +sq.get('page') || 1, url: (n) => `https://www.dlsite.com/${d[1]}/campaign/discount/ajax?${aq}&page=${n}` };
+    },
+    // 맞는 받은 카드를 목록 맨 앞에(사이트 카드 앞) 둔다. 화면을 바꿨으면 true(다시 거르기)
+    sync(items, pass, need) {
+      const ul = items[0] && items[0].parentElement;
+      if (!ul) return false;
+      const src = evAll.source();
+      if (!src || src.key !== evAll.key) { evAll.key = src ? src.key : ''; evAll.keyAt = Date.now(); evAll.pool = []; evAll.got = new Set(); evAll.started = false; evAll.tok++; }
+      evAll.need = need;
+      // 결정 이유: 사이트가 열린 직후 주소를 한 번 고쳐 쓴다(언어를 바꾸면 조건이 빠진 주소로, 2026-11-22 실제) — 주소가 2초 그대로일 때만 받기 시작(전엔 옛 주소로 3쪽 받고 버려 요청 12번)
+      if (need && src && !evAll.started) { const w = 2000 - (Date.now() - evAll.keyAt); if (w > 0) setTimeout(() => list.scheduleApply(0), w + 50); else evAll.fetch(src); }
+      const mine = [...ul.children].filter((c) => c.classList.contains('dlev'));
+      const want = need && src ? evAll.pool.filter((li) => pass(list.read(li, +li.dataset.dlIdx))) : [];
+      if (mine.length === want.length && mine.every((x, i) => x === want[i])) return false;
+      for (const x of mine) if (!want.includes(x)) x.remove();
+      const first = [...ul.children].find((c) => !c.classList.contains('dlev')) || null;
+      for (const li of want) ul.insertBefore(li, first);
+      return true;
+    },
+    fetch(src) {
+      const total = +(((document.body.textContent || '').match(TOTAL_RE) || [])[1] || '').replace(/,/g, '');
+      if (!total) return; // 사이트가 개수를 아직 안 그렸으면 다음에
+      evAll.started = true;
+      const todo = [];
+      for (let n = 1; n <= Math.ceil(total / EV_PER) && todo.length < EV_MAX - 1; n++) if (n !== src.cur && !evAll.got.has(n)) todo.push(n); // 지금 쪽 빼고 앞에서부터 9쪽(받은 쪽은 다시 안 받음)
+      const have = new Set([...document.querySelectorAll('li.n_work_list_item:not(.dlev) a[href*="/product_id/"]')].map((a) => pidOf(a.href)));
+      for (const li of evAll.pool) { const a = li.querySelector('a[href*="/product_id/"]'); if (a) have.add(pidOf(a.href)); }
+      const tok = evAll.tok;
+      const step = (i) => {
+        if (i >= todo.length || tok !== evAll.tok) return;
+        if (!evAll.need) { evAll.started = false; return; } // 받는 도중 조건을 끄면 멈춘다(다시 켜면 남은 쪽부터)
+        netFetch(src.url(todo[i]), { credentials: 'include', headers: XHR }, 'text').then((html) => {
+          if (tok !== evAll.tok) return;
+          net.good();
+          evAll.got.add(todo[i]);
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          for (const li of doc.querySelectorAll('li.n_work_list_item')) {
+            const a = li.querySelector('a[href*="/product_id/"]'), id = a && pidOf(a.href);
+            if (!id || have.has(id)) continue;
+            have.add(id);
+            const n = document.importNode(li, true);
+            // ajax 카드의 그림은 사이트 Vue 칸(<img-with-fallback :candidates="['…webp','…jpg']">)이라 넣어도 안 그려진다 → 보통 img로(첫 주소, 안 되면 다음)
+            for (const f of n.querySelectorAll('img-with-fallback')) {
+              const cs = [...(f.getAttribute(':candidates') || '').matchAll(/'([^']+)'/g)].map((m) => m[1]);
+              if (!cs.length) continue;
+              const img = el('img', { src: cs[0], alt: f.getAttribute('alt') || '', loading: 'lazy' });
+              let k = 0; img.addEventListener('error', () => { if (++k < cs.length) img.src = cs[k]; });
+              const box = f.closest('[data-vue-component]') || f;
+              box.replaceWith(el('div', {}, img));
+            }
+            n.classList.add('dlev'); n.dataset.dlIdx = String(list.seq++);
+            evAll.pool.push(n);
+          }
+          list.scheduleApply(50);
+          setTimeout(() => step(i + 1), VA_GAP_MS);
+        }).catch(() => { /* 못 받으면 여기서 멈춘다(받은 쪽까지만 모음). 다른 조건 주소가 되면 다시 */ });
+      };
+      step(0);
     },
   };
 
@@ -2991,6 +3286,7 @@
     // 바 바로 아래에(바가 화면 위로 지나갔으면 화면 맨 위에). 키보드가 올라오면 보이는 높이 안에서만
     fit() {
       if (!sheet.node || sheet.node.hidden) return;
+      if (sheet.node.classList.contains('bt')) { sheet.node.style.top = ''; sheet.node.style.maxHeight = ''; return; } // 아래에서 올라오는 창(0.61.0 번역 필터)은 CSS 자리 그대로
       const bar = sheet.opener && (sheet.opener.closest('#dlbar') || sheet.opener); // 바 또는 검색창 아래
       const vv = window.visualViewport;
       const vTop = vv ? vv.offsetTop : 0, vH = vv ? vv.height : innerHeight;
@@ -3008,6 +3304,8 @@
       sheet.node.replaceChildren(...parts.filter(Boolean));
       sheet.node.hidden = false;
       sheet.back.hidden = !!opt.noBack;
+      sheet.node.classList.toggle('bt', !!opt.bottom);
+      sheet.back.classList.toggle('dim', !!opt.bottom);
       sheet.fit();
       if (opt.focus) sheet.node.querySelector(opt.focus)?.focus();
     },
@@ -3549,6 +3847,7 @@ li._cart_item dd.cart_item_foot a,li._cart_items dd.cart_item_foot a{background:
 html.dlwish .work_bottom .work_labels{display:none!important}
 .dlx .dlnm.ok{color:#7be08a}
 #dlsheet .li.mv{background:#f6e5eb;outline:2px solid #d76088;outline-offset:-2px}
+#dlh .op.mv{outline:2px solid #d76088;outline-offset:-2px} /* 0.60.0 필터 정렬 칸 집어 올림 */
 /* 0.46.0 카드 맨 아래 ♥·장바구니 줄: 버튼을 카드 폭 절반(약 141px)에서 52px 고정으로 줄이고 가운데 모음.
    아이콘 22→17px, 줄 높이 36→28px, 위아래 여백 8→5px. 카드가 2열이라 절반씩 쓰면 아이콘에 비해 배경만 컸다.
    누르는 크기는 52×28px로 WCAG 2.2 AA(최소 24×24)를 넘는다. 시안 guide/ui-0.46-카드아이콘.png B안. */
@@ -3590,8 +3889,8 @@ li.n_work_list_item dt.n_work_thumb{margin-bottom:2px!important}
 /* 0.46.2 썸네일 흐리게(설정 blurThumb). 목록·장바구니 사진과, 작품 화면의 표지(_img_main)에만 건다.
    작품 화면의 샘플 사진(_img_smp1~)은 일부러 안 건다(사용자: "뒤에 나오는 이미지들 말고").
    품번·딱지 같은 우리 글자는 사진이 아니라서 안 걸리고, filter는 자리(레이아웃)를 안 바꿔 카드 위 겹침 위치 계산도 그대로다. */
-html.dlh-blur .n_work_thumb img,html.dlh-blur .work_thumb img,html.dlh-blur img[src*="_img_main"],html.dlh-blur img[srcset*="_img_main"]{filter:blur(12px)}
-html.dlh-blur #work_visual img[src*="_img_main"],html.dlh-blur #work_left img[src*="_img_main"]{filter:blur(20px)}
+html.dlh-blur .n_work_thumb img,html.dlh-blur .work_thumb img,html.dlh-blur img[src*="_img_main"],html.dlh-blur img[srcset*="_img_main"]{filter:blur(var(--dlb,12px))}
+html.dlh-blur #work_visual img[src*="_img_main"],html.dlh-blur #work_left img[src*="_img_main"]{filter:blur(calc(var(--dlb,12px)*5/3))}
 .dlch{min-height:calc(var(--dlz,1)*20px)}
 .n_work_price_wrap>.dlsl,.work_price_wrap>.dlsl{margin:0 6px 0 0;min-width:calc(var(--dlz,1)*50px)}
 li.n_work_list_item .n_work_price_wrap,li.n_work_list_item .work_price_wrap{display:flex!important;align-items:center;flex-wrap:wrap}
@@ -3606,16 +3905,72 @@ li.dlgrid.n_work_list_item .operations .btn{width:28px!important;height:28px!imp
 .dlx .dlva i{font-style:normal;opacity:.7;margin-right:4px}
 .dlx .dlw{visibility:visible!important;opacity:1!important;position:relative;flex:none;display:inline-flex;align-items:center;height:16px;margin:0 0 0 auto;padding:0 6px;border:0;border-radius:999px;background:#fff;color:#111;font-size:10px;font-weight:700;line-height:1;text-decoration:none;white-space:nowrap;pointer-events:auto;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .dlx .dlw::after{content:'';position:absolute;inset:-8px -8px}
-.dlx>.dlw{position:absolute!important;top:6px;right:6px;margin:0!important;width:22px;height:22px;padding:0!important;justify-content:center;border-radius:50%!important;border:1.3px solid #222!important;background:#fff!important;font-size:6.5px!important;font-weight:900;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.dlx>.dlw{position:absolute!important;display:inline-flex!important;top:6px!important;right:6px!important;bottom:auto!important;left:auto!important;margin:0!important;width:22px!important;height:22px!important;min-height:0!important;max-height:none!important;padding:0!important;justify-content:center;border-radius:50%!important;border:1.3px solid #222!important;background:#fff!important;font-size:6.5px!important;font-weight:900;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 
 .dlcp{position:absolute;left:4px;bottom:4px;z-index:5;display:flex;flex-wrap:wrap;gap:3px;pointer-events:none}
 .dlcp b{display:inline-flex;align-items:center;height:16px;background:#e5322d;color:#fff;border-radius:999px;padding:0 6px;font:700 10px/1 system-ui,sans-serif;white-space:nowrap}
 .dlcp b.c2{background:#f07800}.dlcp b.c1{background:#2f80d1}.dlcp b.c0{background:#888}
+/* 0.60.0 딱지 글자 위아래 가운데: 위 여백 1px → 아래 1px(잉크를 재 보니 1.5~2px 아래로 처져 있었다) */
+.dlch .dlcpn,.dlrow .dlcpn,.dlben .dlcpn,dd.n_work_option .dlcpn,.dlrow .dlty,.dlben .dldue,.dlch .dldue,dd.n_work_option .dldue{box-sizing:border-box;padding-top:0!important;padding-bottom:1px!important;line-height:1}
+li.n_work_list_item dd.n_work_option > span:not(:empty):not([class*="icon_REV"]){padding:0 6px 1px!important}
+.n_work_price_wrap .overseas_discount_label .icon_campaign,.work_price_wrap .overseas_discount_label .icon_campaign,.dlsl{box-sizing:border-box;padding-top:0!important;padding-bottom:1px!important}
+/* 0.60.0 할인율 색(30 이하·50 이하·80 미만·80 이상) */
+.n_work_price_wrap .icon_campaign.o1,.work_price_wrap .icon_campaign.o1,.dlsl.o1{background:#fde4dc!important;color:#a3301b!important}
+.n_work_price_wrap .icon_campaign.o2,.work_price_wrap .icon_campaign.o2,.dlsl.o2{background:#f6b3a2!important;color:#6e1508!important}
+.n_work_price_wrap .icon_campaign.o3,.work_price_wrap .icon_campaign.o3,.dlsl.o3{background:#e8676a!important;color:#fff!important}
+.n_work_price_wrap .icon_campaign.o4,.work_price_wrap .icon_campaign.o4,.dlsl.o4{background:#b8003c!important;color:#fff!important}
+/* 0.60.0 쿠폰 색(실제 깎이는 비율 10·20·30% 구간) · 묶음 */
+.dlcpn.q1{background:#e3effc!important;color:#1d5aa6!important}.dlcpn.q2{background:#a9cdf5!important;color:#0f3f7a!important}
+.dlcpn.q3{background:#2a63ad!important;color:#fff!important}.dlcpn.q4{background:#2b3f8c!important;color:#fff!important}
+.dlcpn.bk{background:#6b49b3!important;color:#fff!important;-webkit-user-select:none;user-select:none}
+/* 0.60.0 격자 카드(사용자 확정 B안 guide/ui-0.60-*): 사진 → 형식·언어·번역 → 제목 2줄 → 작가 → 별점 → 가격 → 쿠폰·묶음 → ♥·장바구니.
+   칸마다 높이를 고정해 옆 카드와 같은 줄에 선다. 모든 줄은 사진 왼쪽 끝에서 시작. 간격: 묶음 안 4~6px, 묶음 사이 8~12px */
+li.dlgrid dl.n_work_item{display:flex!important;flex-direction:column}
+li.dlgrid dl.n_work_item>dd{margin-left:0!important;margin-right:0!important;padding-left:0!important;padding-right:0!important}
+li.dlgrid dl.n_work_item>dt{order:1}
+li.dlgrid dl.n_work_item>.dlrow{order:2;margin:10px 0 0!important;padding:0!important;min-height:calc(var(--dlz,1)*20px);flex-wrap:wrap!important;gap:4px}
+.dlrow .dllg{flex:0 1 auto;min-width:0;white-space:nowrap;padding:0 0 1px 2px;font:700 11px/1 system-ui,sans-serif;color:#b8334f}
+.dlrow .dlsep{flex:none;padding-bottom:1px;font:400 11px/1 system-ui,sans-serif;color:#9a9aa0}
+li.dlgrid .dlrow .dltg.y{flex:none;padding-bottom:1px;font:700 11px/1 system-ui,sans-serif;color:#2f7a45}
+/* 0.60.0 사용자: 제목·작가가 잘리면 안 된다 → 다 보이게 두고, 옆 카드와 칸 높이는 list.equalize가 맞춘다(같은 줄에서 제일 긴 카드 기준) */
+li.dlgrid dl.n_work_item>dd.n_work_name{order:3;margin-top:8px!important;margin-bottom:0!important;line-height:1.4!important;height:auto!important;max-height:none!important;overflow:visible!important;display:block!important;-webkit-line-clamp:unset!important}
+li.dlgrid dl.n_work_item>dd.n_work_name *{-webkit-line-clamp:unset!important;max-height:none!important;overflow:visible!important;white-space:normal!important;text-overflow:clip!important}
+li.dlgrid dl.n_work_item>dd.n_maker_name{order:4;margin-top:4px!important;margin-bottom:0!important;white-space:normal!important;overflow:visible!important;max-height:none!important;height:auto!important;display:block!important;-webkit-line-clamp:unset!important}
+li.dlgrid dl.n_work_item>dd.n_maker_name *{white-space:normal!important;text-overflow:clip!important;overflow:visible!important}
+li.dlgrid dl.n_work_item>dd.n_work_couple,li.dlgrid dl.n_work_item>dd.n_work_couple *{white-space:normal!important;text-overflow:clip!important;overflow:visible!important;max-height:none!important;-webkit-line-clamp:unset!important} /* 사이트 CP(커플) 줄도 다 보이게 */
+li.dlgrid dl.n_work_item>dd.n_work_rating{order:5;margin-top:6px!important;margin-bottom:0!important}
+li.dlgrid dl.n_work_item>dd.n_work_option:has([class*="icon_REV"]){order:5;margin-top:2px!important;margin-bottom:0!important} /* 이벤트(묶음) 화면은 별점·리뷰 수가 따로 있다 */
+li.dlgrid dl.n_work_item>dd.n_work_value,li.dlgrid dl.n_work_item>.dlv0{order:5;margin-top:6px!important;margin-bottom:0!important;min-height:18px;display:flex!important;align-items:center}
+li.dlgrid dl.n_work_item>dd.n_work_price_wrap{order:6;margin-top:8px!important;margin-bottom:0!important;min-height:24px;display:flex!important;align-items:center;gap:6px;justify-content:flex-start!important}
+li.dlgrid dd.n_work_price_wrap>*{margin:0!important}
+li.dlgrid dd.n_work_price_wrap>.work_price{padding-left:0!important}
+li.dlgrid dd.n_work_price_wrap .overseas_discount_label:not(:has(*)){display:none!important}
+li.dlgrid dd.n_work_price_wrap .overseas_discount_label{padding-left:0!important;margin-left:0!important}
+li.dlgrid dd.n_work_price_wrap .icon_campaign{margin-left:0!important;padding:0 7px 1px!important}
+li.dlgrid dl.n_work_item>.dlben{order:7;display:flex!important;flex-wrap:wrap;align-items:center;gap:4px;margin:6px 0 0!important;padding:0!important;min-height:calc(var(--dlz,1)*20px);list-style:none}
+.dlben .dlcpn,.dlben .dldue{flex:none;display:inline-flex;align-items:center;justify-content:center;height:calc(var(--dlz,1)*20px);padding:0 7px 1px;border-radius:5px;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*10px);line-height:1;white-space:nowrap}
+li.dlgrid dl.n_work_item>dd:not(.n_work_name):not(.n_maker_name):not(.n_work_value):not(.n_work_rating):not(.n_work_price_wrap):not(.dlrow):not(.dlben):not(.dlv0):not(:has([class*="icon_REV"])){order:8}
+li.dlgrid dd.n_work_option [class*="icon_L_"]{display:none!important}
+li.dlgrid dd.n_work_option:not(:has(>span:not([class*="icon_L_"]):not(:empty))){display:none!important}
+/* 사이트 '세트 할인 상품' 딱지(.type_matome)는 우리 '묶음 N%'와 같은 뜻 — 우리 것이 있으면 숨긴다(서클 화면에서 쿠폰 줄 아래로 따로 떨어져 보였다) */
+li.dlgrid:has(.dlben .bk) dd.n_work_option .sale_state_item:has(.type_matome){display:none!important}
+li.dlgrid:has(.dlben .bk) dd.n_work_option:not(:has(>span:not([class*="icon_L_"]):not(:empty):not(:has(.type_matome)))){display:none!important}
+li.dlgrid.dlhas>.dlact{padding-top:12px!important;margin-left:12px!important;margin-right:12px!important} /* 사이트 카드 안 여백(dl padding 12px)과 같은 시작선 */
+li.dlgrid .dlact .dlfav{flex:0 1 74px;min-width:34px}li.dlgrid .dlact .dlcart{min-width:34px} /* 좁은 카드(PC 4열 등)에서 장바구니가 0px로 눌리지 않게 */
 
 
 #dlsheet-back{position:fixed;inset:0;background:transparent;z-index:2147483001}
 #dlsheet{position:fixed;left:10px;right:10px;z-index:2147483002;max-width:540px;margin:0 auto;padding:6px 0 10px;overflow:auto;background:var(--bg);color:var(--ink);border-radius:14px;box-shadow:0 0 0 1px rgba(0,0,0,.06),0 8px 28px rgba(0,0,0,.18);font-size:14.5px;line-height:1.3}
 #dlsheet[hidden],#dlsheet-back[hidden]{display:none}
+/* 0.61.0 번역 필터: 아래에서 올라오는 창(사용자 C안) */
+#dlsheet-back.dim{background:rgba(0,0,0,.35)}
+#dlsheet.bt{top:auto;bottom:0;left:0;right:0;max-width:none;max-height:82vh;padding:12px 16px calc(16px + env(safe-area-inset-bottom));border-radius:18px 18px 0 0;font-family:Pretendard,system-ui,sans-serif}
+#dlsheet .trh{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}#dlsheet .trh b{font-size:18px}
+#dlsheet .trh .x{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;background:none;color:#666;padding:0}#dlsheet .trh .x svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+#dlsheet .trr{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f2eef0}#dlsheet .trr>span{flex:0 0 40px;padding-top:8px;font-size:13px;color:#888}#dlsheet .trr .chips{padding:0}
+#dlsheet .chip.on{background:#f6e5eb;color:#d76088}
+#dlsheet .trf{display:flex;gap:8px;margin-top:14px}#dlsheet .trf button{display:inline-flex;align-items:center;justify-content:center;height:46px;border:0;border-radius:23px;font:600 15px Pretendard,system-ui,sans-serif}
+#dlsheet .trf .rsb{flex:1;background:#f0eeef;color:#555}#dlsheet .trf .gob{flex:2;background:#d76088;color:#fff;font-weight:700}
 /* 0.59.0 쪼개 사기: 사이트 쿠폰 칸 안 한 줄(가운데, 사용자 B안) · 창 */
 .dlsplit{display:flex;align-items:center;justify-content:center;gap:2px;width:100%;box-sizing:border-box;margin:8px 0 0;padding:8px 10px;border:0;border-radius:8px;background:#f6e5eb;color:#d76088;font:800 13px/1.2 Pretendard,system-ui,sans-serif;font-weight:800!important;cursor:pointer}
 .dlsplit.band{width:auto;margin:8px 10px}
@@ -3790,12 +4145,17 @@ li._cart_item .dlch,li._cart_items .dlch{margin-bottom:8px!important}
 .dlrow.dlrc{position:absolute!important;left:0;top:0;right:0;height:0!important;min-height:0!important;margin:0!important;padding:0!important}
 .dlrow.dlrc .dlty{position:absolute;left:var(--tl,8px);top:var(--tt,101px);margin:0!important}
 .dlrow.dlrc .dlw{position:absolute;right:10px;top:12px;margin:0!important}
+.dlrow.dlrc .dllgc{position:absolute;display:flex;align-items:center;justify-content:center;height:20px;padding-bottom:1px;box-sizing:border-box;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:700 11px/1 system-ui,sans-serif;color:#b8334f;pointer-events:none} /* 0.60.0 장바구니 언어(A안) */
+.dlhid{display:none!important}
+li._cart_item dl.dlrcp,li._cart_items dl.dlrcp{padding-bottom:4px}
 .dlrow.dlrc ~ dd.n_work_name,.dlrow.dlrc ~ dd.work_name{padding-right:28px!important;box-sizing:border-box}
 /* 0.53.0 번역 허가 목록 줄·번역 ○/✕ 딱지·이름 꾹 메뉴·메뉴 글씨 얇게(글씨 400~500, 색은 켜진 것만 분홍) */
 #dltr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px;font-family:Pretendard,system-ui,sans-serif}
 #dltr button{height:32px;padding:0 13px;border:0;border-radius:16px;background:#f0eeef;color:#555;font:500 13px/1 Pretendard,system-ui,sans-serif;cursor:pointer}
 #dltr button.on{background:#f6e5eb;color:#d76088}
 #dltr .sp{flex:1 1 auto}
+#dltr button.sh+button:not(.sh){margin-left:8px} /* 0.61.0 신청중·신청 없음·전체 묶음과 언어 칩 사이 */
+html:has(#dltr) .reception_status_btn{color:#2f7a45!important;font-weight:700!important} html:has(#dltr) .reception_status_btn.dlrz{color:#888!important;font-weight:500!important} /* 0.61.0 번역 신청중 = 초록, 신청 X = 회색 */
 /* 0.54.0 라이브러리 ♡·태그·메모: 칩 줄은 번역 허가 줄과 같은 모양, ♡는 카드 오른쪽 아래, 메모 점은 왼쪽 아래 */
 #dllib{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0;font-family:Pretendard,system-ui,sans-serif}
 #dllib button{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:32px;padding:0 13px;border:0;border-radius:16px;background:#f0eeef;color:#555;font:500 13px/1 Pretendard,system-ui,sans-serif;cursor:pointer}
@@ -3891,7 +4251,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
     // 필터 N / 적용: 목록 화면이면 늘 보인다(list.syncFab). 적용 대기 중이면 적용, 아니면 우리 필터 창
     // 0.48.0: 꾹 누르면 정렬 창(바의 정렬 칩을 누른 것과 같음). 정렬이 안 되는 화면(흐린 칩)은 아무것도 안 한다
     const fb = el('button', { class: 'fb', id: 'dlfb', hidden: '', 'aria-label': '탭: 필터 · 꾹: 정렬' });
-    pressable(fb, () => { if (route.isCart(location.pathname)) cart.pickTap(); else if (list.staged) list.onApply(); else setOpen(true, 'filter'); }, () => {
+    pressable(fb, () => { if (route.isCart(location.pathname)) cart.pickTap(); else if (route.isTrans(location.pathname)) { if (trOpen) trOpen(fb); } else if (list.staged) list.onApply(); else setOpen(true, 'filter'); }, () => {
       const sc = document.querySelector('#dlbar .c[data-k="sort"]');
       if (sc && !sc.disabled) sc.click();
     });
@@ -4001,7 +4361,10 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
           gt('작품 표시'),
           grp(chk('showVA', '목록에 성우(CV) 표시', reload), chk('hideAI', 'AI 생성 작품 숨기기', () => list.apply()), chk('blurThumb', '썸네일 흐리게', applyThumbBlur), chk('dimOwned', '산 작품 흐리게', applyOwned), chk('onlyTlBl', 'TL/BL 층만 보이기', reload), chk('reviewFirst', '작품 화면: 리뷰 먼저(신착순)', reload),
             el('div', { class: 'tg' }, el('span', { class: 'tl' }, '할인 딱지 크기'), el('span', { class: 'seg' }, ...[['작게', 's'], ['보통', 'm'], ['크게', 'l']].map(([t, v]) =>
-              el('button', { class: opt('chipSize') === v ? 'o' : '', 'aria-pressed': String(opt('chipSize') === v), onclick: () => { store.set('chipSize', v); applyChipSize(); render(); } }, t))))),
+              el('button', { class: opt('chipSize') === v ? 'o' : '', 'aria-pressed': String(opt('chipSize') === v), onclick: () => { store.set('chipSize', v); applyChipSize(); render(); } }, t)))),
+            // 0.60.0 썸네일 흐림 세기(사용자 요청). 고르면 흐리게도 켠다
+            el('div', { class: 'tg' }, el('span', { class: 'tl' }, '흐림 세기'), el('span', { class: 'seg' }, ...[['약', 's'], ['중', 'm'], ['강', 'l']].map(([t, v]) =>
+              el('button', { class: opt('blurLv') === v ? 'o' : '', 'aria-pressed': String(opt('blurLv') === v), onclick: () => { store.set('blurLv', v); store.set('blurThumb', true); applyThumbBlur(); render(); } }, t))))),
           gt('검색'),
           grp(chk('saleOnly', '할인중인 작품만 검색', reload), chk('koDefault', '한국어 작품만 (언어 안 정했을 때)', reload), chk('searchJa', '검색 결과는 일본어로', reload),
             el('div', { class: 'tg' }, el('span', { class: 'tl' }, '화면 언어'), el('span', { class: 'seg' }, ...[['한국어', false], ['日本語', true]].map(([t, j]) =>
@@ -4085,15 +4448,18 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
           const ROWS = SEXES, COLS = FORMS.map((f) => [f[0], f[1]]);
           const SEXN = { girls: 'TL', bl: 'BL' }, FORMN = Object.fromEntries(FORMS.map((f) => [f[0], f[1]]));
           const cellOn = (sexV, formV) => s.sex.includes(sexV) && s.forms.includes(formV);
+          const one = !!fspec.oneFloor; // 서클: 층 하나만
           const byOrder = (list, order) => order.filter((v) => list.includes(v));
           // 칸 하나 켜기: 그 행·열을 함께 켠다(사이트가 직사각형만 되기 때문). 끄기: 그 열만 끈다
           const pickCell = (sexV, formV) => {
+            if (one && !s.sex.includes(sexV)) return; // 0.60.0 서클은 다른 층으로 못 바꾼다(서클 작품은 층마다 달라 빈 화면이 됐다)
             if (cellOn(sexV, formV)) { s.forms = s.forms.filter((v) => v !== formV); }
-            else { s.sex = [sexV]; /* 0.52.0 TL·BL은 따로(사용자): 다른 층 칸을 누르면 층이 바뀐다. 둘을 합쳐 보면 요청·쪽 넘김이 어긋남 */ s.forms = byOrder([...new Set([...s.forms, formV])], FORMS.map((f) => f[0])); }
+            else { s.sex = one ? [sexV] : byOrder([...new Set([...s.sex, sexV])], ROWS.map((r) => r[0])); /* 0.60.0 TL+BL 함께(사이트 is_tl+is_bl). 서클만 층 하나 */ s.forms = byOrder([...new Set([...s.forms, formV])], FORMS.map((f) => f[0])); }
             render();
           };
           // 행 머리(TL·BL) = 그 대상으로 바꿈(형식은 그대로 둔다). 이미 그 하나만 켜져 있으면 끈다
-          const pickRow = (sexV) => { s.sex = (s.sex.length === 1 && s.sex[0] === sexV) ? [] : [sexV]; render(); };
+          // 0.60.0 줄 머리 = 그 대상 켜고 끄기(TL·BL 함께 가능). 마지막 하나는 안 꺼진다(대상 없음 = 몰래 지금 층 검색이던 것)
+          const pickRow = (sexV) => { if (one) return; if (s.sex.includes(sexV)) { if (s.sex.length > 1) s.sex = s.sex.filter((x) => x !== sexV); } else s.sex = byOrder([...s.sex, sexV], ROWS.map((r) => r[0])); render(); };
           // 열 머리(망가·ASMR…) = 그 형식을 켜고 끈다(대상은 그대로).
           const pickCol = (formV) => { s.forms = s.forms.includes(formV) ? s.forms.filter((v) => v !== formV) : byOrder([...s.forms, formV], FORMS.map((f) => f[0])); render(); };
           const th = (t, extra, onclick, extraAttrs) => {
@@ -4105,7 +4471,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
           for (const [sexV, sexT] of ROWS) {
             // 0.48.0: 형식을 안 고르면 '그 대상의 전부'라서, 행 머리를 분홍으로 하고 그 줄 칸을 옅게 칠한다(칸이 하나도 안 켜져 대상이 안 보이던 것)
             const rowOn = s.sex.includes(sexV), all = rowOn && !s.forms.length;
-            trs.push(el('tr', {}, th(sexT, 'rh' + (rowOn ? ' on' : ''), () => pickRow(sexV), { 'data-sex': sexV }), ...COLS.map(([fV]) => {
+            trs.push(el('tr', { ...(one && !rowOn ? { class: 'dis', 'aria-disabled': 'true' } : {}) }, th(sexT, 'rh' + (rowOn ? ' on' : ''), () => pickRow(sexV), { 'data-sex': sexV }), ...COLS.map(([fV]) => {
               const on = cellOn(sexV, fV);
               const b = el('button', {
                 class: 'cc' + (on ? ' on' : all ? ' al' : ''), 'aria-pressed': String(on),
@@ -4123,7 +4489,28 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
           el('button', { class: 'gh find top', 'aria-label': '태그 이름으로 찾기', onclick: () => go('genre') }, icon('sr'), el('span', {}, s.genres.length ? `태그 찾기 · ${s.genres.length}개 고름` : '태그 찾기'), el('span', { class: 'chv' }, '›')),
           ...(s.genres.length ? [el('div', { class: 'pad' }, ...s.genres.map((n) => el('button', { class: 'op on', onclick: () => { s.genres = s.genres.filter((x) => x !== n); render(); } }, tagName(n), icon('x'))))] : [])];
         // 0.51.0 정렬: 필터 창 안에서 고른다(사이트가 정렬을 무시하는 형식 목록은 '검색하기'가 같은 작품 검색으로 넘기며 정렬을 적용한다)
-        const sortRow = () => lr('정렬', 'g3 srt', ...SORTS.map(([v, , t]) => opt2(t, s.order === v, () => { s.order = v; render(); })));
+        // 0.60.0 사용자 요청: 정렬 칸도 꾹 = 집어 올림 → 다른 칸을 누르면 그 앞으로(정렬 창 sheet.openSort와 같은 순서 'sort.order.s'를 같이 쓴다)
+        const sortRow = () => {
+          const saved = String(store.get('sort.order.s', '')).split(',').filter(Boolean);
+          const at = (v) => { const i = saved.indexOf(v); return i < 0 ? 99 : i; };
+          const ord = [...SORTS].sort((a, b) => (at(a[0]) - at(b[0])) || (SORTS.indexOf(a) - SORTS.indexOf(b)));
+          return lr(fltSortMv ? '옮길 자리' : '정렬', 'g3 srt', ...ord.map(([v, , t]) => {
+            const b = opt2(t, s.order === v, () => {}); // 누름·꾹은 아래 pressable이 맡는다
+            if (fltSortMv === v) b.classList.add('mv');
+            b.style.webkitTouchCallout = 'none';
+            b.addEventListener('contextmenu', (e) => e.preventDefault());
+            pressable(b, () => {
+              if (!fltSortMv) { s.order = v; render(); return; }
+              if (fltSortMv !== v) {
+                const from = ord.findIndex((x) => x[0] === fltSortMv), it = ord.splice(from, 1)[0];
+                ord.splice(ord.findIndex((x) => x[0] === v), 0, it);
+                store.set('sort.order.s', ord.map((x) => x[0]).join(','));
+              }
+              fltSortMv = null; render();
+            }, () => { fltSortMv = fltSortMv === v ? null : v; render(); });
+            return b;
+          }));
+        };
         // 0.46.0 배치: 표(대상×종류) 위 → 언어·연령·가격·할인 왼쪽 라벨 줄 → 장르(접힘)
         // 장르는 수백 개라 접는 방식을 그대로 쓰고, 고른 태그만 라벨 줄에 칩으로 보여준다
         // 0.48.0: 모든 목록에서 같은 칸을 보인다. 이 화면에서 못 쓰는 칸은 빼지 않고 회색(사용자 결정, 이벤트·묶음 할인 화면만 해당)
@@ -4136,7 +4523,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
           dis(lr('언어', 'g4', ...LANGS.map(([v, t]) => opt2(t.replace('중국어 ', ''), s.lang.includes(v), tog('lang', v)))), 'lang'),
           dis(lr('연령', 'g3', ...AGES.map(([v, t]) => opt2(t, s.age === v, () => { s.age = s.age === v ? '' : v; render(); }))), 'age'),
           dis(lr('가격', 'g4', ...PRICES.map(([v, t]) => opt2(t, s.price === v, () => { s.price = s.price === v ? '' : v; render(); }))), 'price'),
-          lr('할인', 'g3', opt2('할인중', s.sale && !s.rate, sale(0)), ...[30, 50, 80].map((r) => opt2(r + '%↑', s.rate === r, sale(r)))),
+          lr('할인', 'g3', opt2('할인중', s.sale && !s.rate, sale(0)), ...[80, 50, 30].map((r) => opt2( /* 0.60.1 사용자: 80·50·30 순서 */r + '%↑', s.rate === r, sale(r)))),
           disSort(sortRow()));
         const foot = el('div', { class: 'ft' },
           fspec.canSave ? el('button', { class: 'svb', 'aria-label': '지금 검색 조건 저장(사이트)', onclick: () => fspec.save() }, icon('bm')) : null,
@@ -4192,6 +4579,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
     };
     const setOpen = (open, v) => {
       root.classList.toggle('open', open);
+      fltSortMv = null; // 0.60.0 창을 닫거나 새로 열면 정렬 집어 올림 취소(남으면 한 번 누름이 선택 대신 순서만 바꿨다)
       if (open) {
         openedAt = Date.now();
         lastV = ''; // 새로 열면 스크롤은 맨 위부터
@@ -4544,6 +4932,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
   }
   function applyThumbBlur() {
     document.documentElement.classList.toggle('dlh-blur', !!opt('blurThumb'));
+    document.documentElement.style.setProperty('--dlb', ({ s: 4, m: 12, l: 24 }[opt('blurLv')] || 12) + 'px'); // 0.60.0 흐림 세기
   }
   // 0.51.1 작품 페이지 리뷰 먼저: html 클래스만 켜고 끈다(CSS는 위 스타일 끝)
   function applyReviewFirst() {
@@ -4564,8 +4953,9 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
   function homeDlw() {
     // 0.58.3 번역 허가 목록(/works/translatable)도 같은 방식으로 DLW(그 목록은 우리 바 대신 #dltr이라 카드 장식이 안 돌았다, 기능 검사)
     if (!/^\/(?:girls|bl)(?:-?(?:pro|drama))?(?:-touch)?\/?$/.test(location.pathname) && !route.isTrans(location.pathname)) return;
-    for (const card of document.querySelectorAll('li.n_work_list_item')) {
-      if (card.querySelector('.dlx')) continue;
+    // 0.60.0 PC 첫 화면은 카드가 div.n_worklist_item(349장)·div.recommend_work_item(슬라이더)이라 li만 찾으면 DLW가 0개였다(화면 검사)
+    for (const card of document.querySelectorAll('li.n_work_list_item, div.n_worklist_item, div.recommend_work_item')) {
+      if (card.querySelector('.dlx') || card.parentElement.closest('.dlx, li.n_work_list_item')) continue;
       const a = card.querySelector('a[href*="/work/=/product_id/"]'), id = a && pidOf(a.getAttribute('href')), h = id && list.host(card);
       if (!h) continue;
       const box = el('div', { class: 'dlx' }, list.dlw(id));
@@ -4602,35 +4992,75 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
   const TR_LANGS = [['KO_KR', '한국어'], ['ENG', '영어'], ['CHI_HANS', '간체'], ['CHI_HANT', '번체']];
   const TR_SORTS = [['trend', '인기'], ['translation_agree_d', '허가 최신'], ['release_d', '신작'], ['dl_d', '판매'], ['price', '가격↓'], ['price_d', '가격↑'], ['review_d', '리뷰']];
   const TR_FORMS = [['SOU', '보이스'], ['MNG', '만화']];
+  const TR_SHOW = [['ing', '번역 신청중'], ['none', '신청 X'], ['all', '전체']];
+  // 0.61.0 사용자: 사이트 버튼은 늘 '접수 중'이라 구분이 안 됨 → 글자를 '번역 신청중 · N' / '신청 X'로(누르면 사이트 표는 그대로 뜬다).
+  // 결정 이유: Vue가 만든 글자 노드의 값만 바꾼다(노드를 갈아 끼우면 Vue가 옛 노드를 고쳐 글자가 엇갈릴 수 있음)
+  function trBtns() {
+    if (!route.isTrans(location.pathname) || !trSeen.size) return;
+    for (const li of document.querySelectorAll('li.n_work_list_item')) {
+      const b = li.querySelector('.reception_status_btn'), a = li.querySelector('a[href*="/product_id/"]');
+      const pid = a && pidOf(a.href), s = pid && trSeen.get(pid);
+      if (!b || !s) continue;
+      // 사용자 말 그대로(언어는 위 칩이 보여 줌). 거절된 작품은 '전체'에서만 보이고, 신청중으로 오해하지 않게 회색 '거절'(코끼리 검수)
+      const want = s.d ? '거절' : s.n >= 1 ? `번역 신청중 · ${s.n}` : '신청 X';
+      const tn = [...b.childNodes].find((n) => n.nodeType === 3 && n.nodeValue.trim());
+      if (!tn || tn.nodeValue.trim() === want) continue;
+      tn.nodeValue = want;
+      b.classList.toggle('dlrz', s.d || s.n < 1);
+    }
+  }
   function trBar() {
     if (!route.isTrans(location.pathname) || document.getElementById('dltr')) return;
-    const ul = document.querySelector('ul.n_work_list');
+    // 0.60.0 0장이면 사이트가 ul을 없앤다 → 결과 칸(#search_result_list)에 넣어 언어를 되돌릴 수 있게
+    const ul = document.querySelector('ul.n_work_list') || document.getElementById('search_result_list');
     if (!ul || !ul.parentElement) return;
     const u = new URL(location.href), K = 'translation_can_apply[0]', cur = u.searchParams.get(K);
+    u.searchParams.set('translation_not_sale', '1'); // 미판매만(사이트 필터 '아직 번역 판매가 없는 작품', 거르기와 같은 조건)
     if (!cur) { // 기본 한국어(사이트는 언어를 안 정하면 전부 보여 줌). 0.58.4 같은 주소로 두 번은 안 연다(사이트가 값을 지우면 끝없이 다시 열 수 있었다)
       u.searchParams.set(K, 'KO_KR');
       let seen = false; try { seen = sessionStorage.getItem('dlh_tr') === u.href; sessionStorage.setItem('dlh_tr', u.href); } catch (e) { seen = true; }
       if (!seen) { location.replace(u.href); return; }
     } else try { sessionStorage.removeItem('dlh_tr'); } catch (e) { /* 막힘 */ }
     const goQ = () => { u.searchParams.delete('page'); location.assign(u.href); };
-    const chips = TR_LANGS.map(([c, t]) => el('button', { class: c === cur ? 'on' : '', 'aria-pressed': String(c === cur), onclick: () => { u.searchParams.set(K, c); goQ(); } }, t));
+    // 0.61.0 사용자: 신청중만 / 아직 없음 / 전체(응답 거르기라 고르면 다시 연다, 요청은 사이트가 받던 1번 그대로)
+    const show = ['none', 'all'].includes(store.get('tr.show')) ? store.get('tr.show') : 'ing';
+    const chips = TR_SHOW.map(([v, t]) => el('button', { class: 'sh' + (v === show ? ' on' : ''), 'aria-pressed': String(v === show), 'aria-label': '보기: ' + t, onclick: () => { if (v === show) return; store.set('tr.show', v); goQ(); } }, t));
+    // 0.61.0 사용자 C안(guide/ui-0.61-번역목록칩결정표.png): 위에는 보기 3칩만, 언어·정렬·형식은 아래 [필터] → 아래에서 올라오는 창(trOpen). '보기'를 누를 때 1번만 연다
     const okey = u.searchParams.has('order[0]') ? 'order[0]' : 'order'; // 사이트 주소는 order=price(배열 아님)
     const ord = u.searchParams.get(okey) || 'trend';
-    chips.push(...TR_SORTS.map(([v, t]) => el('button', { class: v === ord ? 'on' : '', 'aria-pressed': String(v === ord), 'aria-label': '정렬: ' + t, onclick: () => { if (v === ord) return; u.searchParams.set(okey, v); goQ(); } }, t)));
-    if (!/^\/books(?:\/|$)/.test(location.pathname)) { // books 층에는 work_type 조건을 안 붙인다
-      const pick = () => [...u.searchParams.entries()].filter(([k]) => /^work_type(?:\[[^\]]*\])?$/.test(k)).map(([, v]) => v);
-      const set = (vs) => {
-        for (const k of [...u.searchParams.keys()]) if (/^work_type(?:\[[^\]]*\])?$/.test(k)) u.searchParams.delete(k);
-        for (const v of TR_FORMS.map((f) => f[0]).filter((x) => vs.includes(x)).entries()) u.searchParams.set(`work_type[${v[0]}]`, v[1]); // 사이트 주소 모양 work_type[0]=SOU
-        goQ();
-      };
-      const has = pick();
-      chips.push(...TR_FORMS.map(([v, t]) => el('button', { class: has.includes(v) ? 'on' : '', 'aria-pressed': String(has.includes(v)), 'aria-label': '형식: ' + t, onclick: () => set(has.includes(v) ? has.filter((x) => x !== v) : [...has, v]) }, t)));
-    }
-    ul.parentElement.insertBefore(el('div', { id: 'dltr', role: 'toolbar', 'aria-label': '번역 허가 거르기' }, ...chips), ul); // 0.55.1 신청 있는 작품만 항상(토글 뺌)
+    const formOk = !/^\/books(?:\/|$)/.test(location.pathname); // books 층에는 work_type 조건을 안 붙인다
+    const has = [...u.searchParams.entries()].filter(([k]) => /^work_type(?:\[[^\]]*\])?$/.test(k)).map(([, v]) => v);
+    trCount = (cur && cur !== 'KO_KR' ? 1 : 0) + (ord !== 'trend' ? 1 : 0) + (has.length ? 1 : 0);
+    trOpen = (opener) => {
+      const d = { l: cur || 'KO_KR', o: ord, f: [...has] };
+      const row = (lab, items) => el('div', { class: 'trr' }, el('span', {}, lab), el('div', { class: 'chips' }, ...items));
+      const ch = (t, on, fn, lab) => el('button', { class: 'chip' + (on ? ' on' : ''), 'aria-pressed': String(on), 'aria-label': lab + ': ' + t, onclick: () => { fn(); draw(); } }, t);
+      const draw = () => (sheet.node && !sheet.node.hidden && sheet.node.classList.contains('bt') ? sheet.redraw : (p) => sheet.show(p, opener, { bottom: true }))([ // 열린 창은 내용만 바꿈(스크롤·포커스 유지)
+        el('div', { class: 'trh' }, el('b', {}, '번역 필터'), el('button', { class: 'x', 'aria-label': '닫기', onclick: () => sheet.close() }, icon('x'))),
+        row('언어', TR_LANGS.map(([c, t]) => ch(t, d.l === c, () => { d.l = c; }, '언어'))),
+        row('정렬', TR_SORTS.map(([v, t]) => ch(t, d.o === v, () => { d.o = v; }, '정렬'))),
+        formOk && row('형식', TR_FORMS.map(([v, t]) => ch(t, d.f.includes(v), () => { d.f = d.f.includes(v) ? d.f.filter((x) => x !== v) : [...d.f, v]; }, '형식'))),
+        el('div', { class: 'trf' },
+          el('button', { class: 'rsb', onclick: () => { d.l = 'KO_KR'; d.o = 'trend'; d.f = []; draw(); } }, '리셋'),
+          el('button', { class: 'gob', onclick: () => {
+            sheet.close();
+            if (d.l === (cur || 'KO_KR') && d.o === ord && [...d.f].sort().join() === [...has].sort().join()) return; // 안 바꿨으면 안 연다
+            u.searchParams.set(K, d.l);
+            if (d.o === 'trend') u.searchParams.delete(okey); else u.searchParams.set(okey, d.o);
+            for (const k of [...u.searchParams.keys()]) if (/^work_type(?:\[[^\]]*\])?$/.test(k)) u.searchParams.delete(k);
+            if (formOk) for (const v of TR_FORMS.map((f) => f[0]).filter((x) => d.f.includes(x)).entries()) u.searchParams.set(`work_type[${v[0]}]`, v[1]); // 사이트 주소 모양 work_type[0]=SOU
+            goQ();
+          } }, '보기')),
+      ]);
+      draw();
+    };
+    ul.parentElement.insertBefore(el('div', { id: 'dltr', role: 'toolbar', 'aria-label': '번역 허가 거르기' }, ...chips), ul);
+    list.syncFab();
   }
+  var trOpen = null, trCount = 0; // var: syncFab이 이 줄보다 먼저 불려도 오류 없게 // 0.61.0 번역 목록 아래 [필터] 창 열기·바꾼 조건 수(trBar가 채움)
   // 0.53.0 이름(서클·성우·작가) 꾹 누르면 작은 메뉴: 검색 · 검색어 저장 · 차단. 종류는 눌린 이름에서 자동. 저장은 기존 키(shortcuts.custom 바로가기, block.list·block.kind)
   let panelApi = null; // buildPanel이 채움(바로가기 읽고 쓰기)
+  let fltSortMv = null; // 0.60.0 필터 창 정렬 칸에서 꾹 눌러 집어 올린 정렬 값
   function nameMenu(name, kind, at) {
     document.getElementById('dlnmm')?.remove();
     const fl = (location.pathname.split('/')[1] || 'girls').replace(/-touch$/, '');
@@ -4853,7 +5283,7 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
   // 0.55.0 한 기능이 오류를 내도 나머지 기능은 돈다(예전엔 하나가 throw하면 바·카드 장식·감시까지 통째로 멈췄다)
   const safe = (f) => { try { f(); } catch (e) { console.warn('[dlsite-helper]', e); } };
   function tidy() {
-    for (const f of [ageGateHide, () => lib.run(), applyThumbBlur, applyReviewFirst, workDlw, workTrans, trBar, homeDlw, applyChipSize, tidyTitle, kwFix, () => sbox.attach(), () => locale.enforce(false), syncSaleFilter,
+    for (const f of [ageGateHide, () => lib.run(), applyThumbBlur, applyReviewFirst, workDlw, workTrans, trBar, trBtns, homeDlw, applyChipSize, tidyTitle, kwFix, () => sbox.attach(), () => locale.enforce(false), syncSaleFilter,
       // 0.47.2: 매번 전체 재탐색(list.invalidate)하지 않고, 카드 목록이 실제로 바뀌었을 때만 무효화한다.
       // 사이트가 DOM을 조금씩 바꿀 때마다 O(카드수 × 트리깊이) 탐색이 돌던 것을 줄인다(스크롤 버벅임 개선).
       () => list.invalidateIfStale(), () => clean.banners(), () => clean.floors(), popupSoon, () => coupon.learn(), () => list.mount(),
@@ -4872,6 +5302,8 @@ html.dlh-rv div:has(> #work_review) > :is(.c-keyVisual,.c-productTitleBox,.c-pur
     libLongPress();
     tidy();
     if (route.isMy(location.pathname) || route.isRank(location.pathname)) for (const ms of [1000, 3000, 6000]) setTimeout(() => list.scheduleApply(0), ms); // 0.49.2 사이트가 카드를 늦게 다시 그려도 DLW 줄을 다시 붙인다
+    window.addEventListener('resize', () => list.eqSoon(), { passive: true }); // 0.60.0 폭이 바뀌면 격자 카드 칸 높이를 다시 맞춘다
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => list.eqSoon()); // 글꼴이 늦게 오면 제목 줄 수가 바뀐다
     if (route.isCart(location.pathname)) { // 0.55.0 폰을 돌리거나 폭이 바뀌면 '카트로 되돌린다' 줄 위치를 다시 잰다
       let rt = null;
       window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { for (const c of document.querySelectorAll('li._cart_item, li._cart_items')) safe(() => list.cartFoot(c)); }, 300); }, { passive: true });
