@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.62.3
+// @version      0.62.4
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -33,7 +33,9 @@
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·품번 띠. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
  *
- * 0.62.3 0.62.2가 깨뜨린 것: 묶음 카드에 사이트 '세트 할인 상품' 딱지가 우리 '묶음 N%'와 같이 다시 뜸 → 언어 숨김 규칙 쪽을 더 구체적으로 바꿈(실제 서클 화면 1→0, 언어 중복 0).
+ * 0.62.4 (사용자) 쿠폰·마감 줄이 비면 자리 안 남김(가격~카트 38→12px). 묶음·이벤트 카드 리뷰 수를 별점 옆으로(사이트가 따로 둬 두 줄이었음).
+ *   - 바꾼 것: list.row(리뷰 수 칸 옮김), CSS(.dlben 빈 줄, dd.n_work_rating 한 줄).
+ * 0.62.30.62.2가 깨뜨린 것: 묶음 카드에 사이트 '세트 할인 상품' 딱지가 우리 '묶음 N%'와 같이 다시 뜸 → 언어 숨김 규칙 쪽을 더 구체적으로 바꿈(실제 서클 화면 1→0, 언어 중복 0).
  * 0.62.2 (사용자) 격자·장바구니에서 연령 딱지가 있는 카드에 사이트 언어 딱지가 다시 떠 언어가 2개 보이던 것 고침. 격자 제목은 2줄까지.
  *   - 할인율 색: 30% 미만 회색 · 30~49 · 50~79 · 80% 이상 검정 바탕 노란 글씨(구간은 이상·미만, guide/ui-0.62-색결정표.png C안).
  *   - 바꾼 것: offTone, CSS(dd.n_work_option 딱지 규칙에 .dlhid·격자 언어 제외, li.dlgrid 제목 줄 수, .dlsl.o1·o4 색).
@@ -1718,6 +1720,9 @@
       // 0.60.0 언어는 형식 칸 오른쪽에 글자만(사이트 언어 딱지는 격자에서 숨김), 번역 신청중은 그 뒤에 '·'로
       const lgN = onCover ? [...card.querySelectorAll('dd.n_work_option [class*="icon_L_"]')].find((n) => n.textContent.trim()) : null;
       const lg = lgN ? lgN.textContent.trim() : '';
+      // 0.62.4 사용자 철칙 '리뷰 수는 별점 옆': 묶음·이벤트 카드는 사이트가 별점(dd.n_work_rating)과 리뷰 수(dd.n_work_option)를 따로 둬 두 줄이 됨 → 리뷰 수를 별점 칸 안으로
+      const rtN = onCover && card.querySelector('dd.n_work_rating'), rvN = rtN && card.querySelector('dd.n_work_option > [class*="icon_REV"]');
+      if (rvN) rtN.append(rvN);
       const sig = [x.id, fav.ok(), on, !!sc, !!act, pidOn, bs.map((b) => b.join(':')).join(','), ag, lg].join('|');
       if (card.dataset.dlsig === sig && r && at && (!onCover || card.querySelector('.dlben'))) return;
       card.dataset.dlsig = sig;
@@ -3943,6 +3948,7 @@ li.dlgrid dl.n_work_item>dd.n_maker_name{order:4;margin-top:4px!important;margin
 li.dlgrid dl.n_work_item>dd.n_maker_name *{white-space:normal!important;text-overflow:clip!important;overflow:visible!important}
 li.dlgrid dl.n_work_item>dd.n_work_couple,li.dlgrid dl.n_work_item>dd.n_work_couple *{white-space:normal!important;text-overflow:clip!important;overflow:visible!important;max-height:none!important;-webkit-line-clamp:unset!important} /* 사이트 CP(커플) 줄도 다 보이게 */
 li.dlgrid dl.n_work_item>dd.n_work_rating{order:5;margin-top:6px!important;margin-bottom:0!important}
+li.dlgrid dl.n_work_item>dd.n_work_rating:has(>[class*="icon_REV"]){display:flex!important;align-items:center;flex-wrap:wrap;gap:0 6px}
 li.dlgrid dl.n_work_item>dd.n_work_option:has([class*="icon_REV"]){order:5;margin-top:2px!important;margin-bottom:0!important} /* 이벤트(묶음) 화면은 별점·리뷰 수가 따로 있다 */
 li.dlgrid dl.n_work_item>dd.n_work_value,li.dlgrid dl.n_work_item>.dlv0{order:5;margin-top:6px!important;margin-bottom:0!important;min-height:18px;display:flex!important;align-items:center}
 li.dlgrid dl.n_work_item>dd.n_work_price_wrap{order:6;margin-top:8px!important;margin-bottom:0!important;min-height:24px;display:flex!important;align-items:center;gap:6px;justify-content:flex-start!important}
@@ -3952,6 +3958,7 @@ li.dlgrid dd.n_work_price_wrap .overseas_discount_label:not(:has(*)){display:non
 li.dlgrid dd.n_work_price_wrap .overseas_discount_label{padding-left:0!important;margin-left:0!important}
 li.dlgrid dd.n_work_price_wrap .icon_campaign{margin-left:0!important;padding:0 7px 1px!important}
 li.dlgrid dl.n_work_item>.dlben{order:7;display:flex!important;flex-wrap:wrap;align-items:center;gap:4px;margin:6px 0 0!important;padding:0!important;min-height:calc(var(--dlz,1)*20px);list-style:none}
+li.dlgrid dl.n_work_item>.dlben:not(:has(>*)){min-height:0!important;margin-top:0!important} /* 0.62.4 사용자: 쿠폰·마감 줄이 비면 자리 안 남김(옆 카드에 있으면 equalize가 높이를 맞춤) */
 .dlben .dlcpn,.dlben .dldue{flex:none;display:inline-flex;align-items:center;justify-content:center;height:calc(var(--dlz,1)*20px);padding:0 7px 1px;border-radius:5px;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*10px);line-height:1;white-space:nowrap}
 li.dlgrid dl.n_work_item>dd:not(.n_work_name):not(.n_maker_name):not(.n_work_value):not(.n_work_rating):not(.n_work_price_wrap):not(.dlrow):not(.dlben):not(.dlv0):not(:has([class*="icon_REV"])){order:8}
 li.dlgrid.n_work_list_item dd.n_work_option > span[class*="icon_L_"]:not(.dlx):not(.dly){display:none!important} /* 0.62.3 결정 이유: 위의 딱지 모양 규칙(span:not(:empty)…, !important)보다 구체적이어야 숨겨진다(연령 딱지 있는 카드에서 언어 2개) — 그 규칙을 올리면 '세트 할인 상품' 숨김이 져서 이쪽을 올림 */
