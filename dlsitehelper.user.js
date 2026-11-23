@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.63.2
+// @version      0.63.3
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -33,6 +33,8 @@
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·♡(마이 리스트)·메모. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
  *
+ * 0.63.3 (사용자 사진) 쿠폰·묶음 딱지와 사이트 딱지(おすすめ翻訳) 사이 4px, 언어 글자 전부 검정(카드·장바구니).
+ *   - 요청 0. 바꾼 것: CSS만.
  * 0.63.2 (사용자 폰 지적) 카드 리뷰 수가 다음 줄로 내려가던 것 → 별점과 한 줄(사이 8px, 좁은 폰은 줄 전체를 살짝 줄임). CP(커플) 줄 없앰.
  *   - 요청 0. 바꾼 것: CSS만.
  * 0.63.1 (사용자 폰 지적 + 결정표 guide/ui-0.63.1-결정표.png) 카트 버튼이 장바구니로 넘어가던 것(묶음 화면 사이트 링크) → 그 품번으로 담기. 디데이 배경 없앰, 연령 딱지는 연령을 골랐을 때만, 형식에 동영상, 작품 화면 서클·성우 꾹 = 차단 메뉴.
@@ -3987,7 +3989,7 @@ li.dlgrid dl.n_work_item{display:flex!important;flex-direction:column}
 li.dlgrid dl.n_work_item>dd{margin-left:0!important;margin-right:0!important;padding-left:0!important;padding-right:0!important}
 li.dlgrid dl.n_work_item>dt{order:1}
 li.dlgrid dl.n_work_item>.dlrow{order:2;margin:10px 0 0!important;padding:0!important;min-height:calc(var(--dlz,1)*20px);flex-wrap:wrap!important;gap:4px}
-.dlrow .dllg{flex:0 1 auto;min-width:0;white-space:nowrap;padding:0 0 1px 2px;font:700 11px/1 system-ui,sans-serif;color:#9a9a9a}.dlrow .dllg.ko{color:#d76088} /* 0.63.1 결정표 4A: 한국어만 분홍, 나머지 회색 */
+.dlrow .dllg{flex:0 1 auto;min-width:0;white-space:nowrap;padding:0 0 1px 2px;font:700 11px/1 system-ui,sans-serif;color:#111} /* 0.63.3 사용자: 언어 글자는 전부 검정 */
 .dlrow .dlxs{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 0 1px;font:600 10.5px/1 system-ui,sans-serif;color:#9a9a9a} /* 0.63.1 결정표 5B: 공식번역·그로 */
 .dlrow .dlsep{flex:none;padding-bottom:1px;font:400 11px/1 system-ui,sans-serif;color:#9a9aa0}
 li.dlgrid .dlrow .dltg.y{flex:none;padding-bottom:1px;font:700 11px/1 system-ui,sans-serif;color:#2f7a45}
@@ -4013,6 +4015,7 @@ li.dlgrid dl.n_work_item>.dlben{order:7;display:flex!important;flex-wrap:wrap;al
 li.dlgrid dl.n_work_item>.dlben:not(:has(>*)){min-height:0!important;margin-top:0!important} /* 0.62.4 사용자: 쿠폰·마감 줄이 비면 자리 안 남김(옆 카드에 있으면 equalize가 높이를 맞춤) */
 .dlben .dlcpn,.dlben .dldue{flex:none;display:inline-flex;align-items:center;justify-content:center;height:calc(var(--dlz,1)*20px);padding:0 7px 1px;border-radius:5px;font-family:system-ui,sans-serif;font-weight:800;font-size:calc(var(--dlz,1)*10px);line-height:1;white-space:nowrap}
 li.dlgrid dl.n_work_item>dd:not(.n_work_name):not(.n_maker_name):not(.n_work_value):not(.n_work_rating):not(.n_work_price_wrap):not(.dlrow):not(.dlben):not(.dlv0):not(:has([class*="icon_REV"])){order:8}
+li.dlgrid dl.n_work_item:has(>.dlben>*)>dd.n_work_option:not(:has([class*="icon_REV"])){margin-top:4px!important} /* 0.63.3 사용자: 묶음 딱지와 사이트 딱지(おすすめ翻訳) 사이 여백. 결정 이유: 사이트 딱지가 DOM에선 .dlben 앞이고 order로 뒤에 보여서 ~ 선택자가 안 걸림 */
 li.dlgrid.n_work_list_item dd.n_work_option > span[class*="icon_L_"]:not(.dlx):not(.dly){display:none!important} /* 0.62.3 결정 이유: 위의 딱지 모양 규칙(span:not(:empty)…, !important)보다 구체적이어야 숨겨진다(연령 딱지 있는 카드에서 언어 2개) — 그 규칙을 올리면 '세트 할인 상품' 숨김이 져서 이쪽을 올림 */
 li.dlgrid dd.n_work_option:not(:has(>span:not([class*="icon_L_"]):not(:empty))){display:none!important}
 html:not(.dlagef) li.n_work_list_item dd.n_work_option > span.dlage:not(.dlx):not(.dly){display:none!important} /* 0.63.1 연령 딱지는 연령을 골랐을 때만. 결정 이유: 위 딱지 모양 규칙(0,5,3)보다 구체적이어야 숨는다 */
@@ -4224,7 +4227,7 @@ li._cart_item .dlch,li._cart_items .dlch{margin-bottom:8px!important}
 .dlrow.dlrc{position:absolute!important;left:0;top:0;right:0;height:0!important;min-height:0!important;margin:0!important;padding:0!important}
 .dlrow.dlrc .dlty{position:absolute;left:var(--tl,8px);top:var(--tt,101px);margin:0!important}
 .dlrow.dlrc .dlw{position:absolute;right:10px;top:12px;margin:0!important}
-.dlrow.dlrc .dllgc.ko{color:#d76088!important}.dlrow.dlrc .dllgc:not(.ko){color:#9a9a9a!important} /* 0.63.1 결정표 4A */
+.dlrow.dlrc .dllgc{color:#111!important} /* 0.63.3 사용자: 언어 글자는 전부 검정 */
 .dlrow.dlrc .dllgc{position:absolute;display:flex;align-items:center;justify-content:center;height:20px;padding-bottom:1px;box-sizing:border-box;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:700 11px/1 system-ui,sans-serif;color:#b8334f;pointer-events:none} /* 0.60.0 장바구니 언어(A안) */
 .dlhid{display:none!important}
 li._cart_item dl.dlrcp,li._cart_items dl.dlrcp{padding-bottom:4px}
