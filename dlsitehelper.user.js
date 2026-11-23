@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DLsite 언어 고정 + 일본 이벤트 + 할인 배너만
 // @namespace    dlsite-locale-filter
-// @version      0.63.1
+// @version      0.63.2
 // @updateURL    https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @downloadURL  https://raw.githubusercontent.com/flzhdlqslek/dl-helper/main/dlsitehelper.user.js
 // @description  (테스트중: 0.38~0.41 실제 폰 확인 전) 사이트 원래 화면은 그대로 두고: 언어 고정, 이벤트 페이지 자동 일본어, 할인 외 배너 숨김, 목록 할인·쿠폰 필터·성우 표시 (성능·태그 검색 최적화).
@@ -33,6 +33,8 @@
  *  10.5 play    DLsite Play(play.dlsite.com)에서 작품 숨기기(Play 자체 비표시)·♡(마이 리스트)·메모. Play에서는 이것만 돈다.
  *  11. boot     시작과 화면 변화 감시.
  *
+ * 0.63.2 (사용자 폰 지적) 카드 리뷰 수가 다음 줄로 내려가던 것 → 별점과 한 줄(사이 8px, 좁은 폰은 줄 전체를 살짝 줄임). CP(커플) 줄 없앰.
+ *   - 요청 0. 바꾼 것: CSS만.
  * 0.63.1 (사용자 폰 지적 + 결정표 guide/ui-0.63.1-결정표.png) 카트 버튼이 장바구니로 넘어가던 것(묶음 화면 사이트 링크) → 그 품번으로 담기. 디데이 배경 없앰, 연령 딱지는 연령을 골랐을 때만, 형식에 동영상, 작품 화면 서클·성우 꾹 = 차단 메뉴.
  *   결정표: 이벤트 화면 지금 층만(남성향 숨김)·한국어 기본·사이트 정렬 줄 숨김, 필터 TL·BL 단추 따로, 한국어만 분홍 글자, 공식번역·그로 딱지는 형식 줄 끝 회색 글자, 바로가기 선 아이콘(주소로 자동+고르기), Play 꾹 '전부 풀기'.
  *   - 요청: 이벤트 화면 처음 한 번 한국어로 다시 열기 +1(검색 koDefault와 같음). 카트는 사이트 버튼과 같은 POST 1번. 나머지 0.
@@ -3994,9 +3996,11 @@ li.dlgrid dl.n_work_item>dd.n_work_name{order:3;margin-top:8px!important;margin-
 li.dlgrid dl.n_work_item>dd.n_work_name *{display:inline!important;-webkit-line-clamp:unset!important;max-height:none!important;overflow:visible!important;white-space:normal!important;text-overflow:clip!important}
 li.dlgrid dl.n_work_item>dd.n_maker_name{order:4;margin-top:4px!important;margin-bottom:0!important;white-space:normal!important;overflow:visible!important;max-height:none!important;height:auto!important;display:block!important;-webkit-line-clamp:unset!important}
 li.dlgrid dl.n_work_item>dd.n_maker_name *{white-space:normal!important;text-overflow:clip!important;overflow:visible!important}
-li.dlgrid dl.n_work_item>dd.n_work_couple,li.dlgrid dl.n_work_item>dd.n_work_couple *{white-space:normal!important;text-overflow:clip!important;overflow:visible!important;max-height:none!important;-webkit-line-clamp:unset!important} /* 사이트 CP(커플) 줄도 다 보이게 */
+li.n_work_list_item dd.n_work_couple{display:none!important} /* 0.63.2 사용자: CP(커플) 줄 없앰 */
 li.dlgrid dl.n_work_item>dd.n_work_rating{order:5;margin-top:6px!important;margin-bottom:0!important}
-li.dlgrid dl.n_work_item>dd.n_work_rating:has(>[class*="icon_REV"]){display:flex!important;align-items:center;flex-wrap:wrap;gap:0 6px}
+li.dlgrid dl.n_work_item>dd.n_work_rating:has(>[class*="icon_REV"]){display:flex!important;align-items:center;flex-wrap:nowrap!important;gap:0 8px;white-space:nowrap} /* 0.63.2 사용자: 리뷰 수가 다음 줄로 내려가지 않게, 별점과 약간 띄움 */
+@media (max-width:399px){li.dlgrid dl.n_work_item>dd.n_work_rating:has(>[class*="icon_REV"])>*{zoom:.86}} /* 결정 이유: 좁은 폰에서 숫자가 길면 카드 밖으로 나가서 안쪽만 살짝 줄임(칸에 zoom을 걸면 equalize 높이 계산이 어긋남) */
+@media (max-width:340px){li.dlgrid dl.n_work_item>dd.n_work_rating:has(>[class*="icon_REV"])>*{zoom:.74}}
 li.dlgrid dl.n_work_item>dd.n_work_option:has([class*="icon_REV"]){order:5;margin-top:2px!important;margin-bottom:0!important} /* 이벤트(묶음) 화면은 별점·리뷰 수가 따로 있다 */
 li.dlgrid dl.n_work_item>dd.n_work_value,li.dlgrid dl.n_work_item>.dlv0{order:5;margin-top:6px!important;margin-bottom:0!important;min-height:18px;display:flex!important;align-items:center}
 li.dlgrid dl.n_work_item>dd.n_work_price_wrap{order:6;margin-top:8px!important;margin-bottom:0!important;min-height:24px;display:flex!important;align-items:center;gap:6px;justify-content:flex-start!important}
